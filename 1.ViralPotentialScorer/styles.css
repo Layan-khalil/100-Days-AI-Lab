@@ -1,0 +1,72 @@
+/* ----------------------------------------------------- */
+/* القاعدة الذهبية: تفعيل RTL بقوة على كل حاوية نصية */
+/* ----------------------------------------------------- */
+
+/* اتجاه التطبيق بالكامل وحاويته الرئيسية */
+html, body, [data-testid="stApp"], .block-container {
+    direction: rtl !important;
+    text-align: right !important;
+    font-family: "Cairo", sans-serif !important;
+}
+
+/* النصوص الأساسية، العناوين، والإدخالات */
+h1, h2, h3, h4, h5, h6,
+p, label, textarea, div, [data-testid*="stText"] {
+    direction: rtl !important;
+    text-align: right !important;
+}
+
+/* صندوق المحتوى الرئيسي لضبط التباعد (Responsive) */
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    /* Max-width تم حذفه لأنه يتعارض مع Wide Layout في بعض الحالات */
+}
+
+/* تباعد الأعمدة (لضمان أن الأعمدة مرتبة من اليمين لليسار) */
+div[data-testid="stHorizontalBlock"] {
+    direction: rtl !important;
+}
+
+.custom-footer {
+        position: fixed; bottom: 0; right: 0; left: 0;
+        text-align: center; padding: 10px;
+        background-color: #f8fafc; color: #64748b;
+        font-size: 0.85em; border-top: 1px solid #e2e8f0; z-index: 100;
+}
+/* استجابة أفضل للموبايل */
+@media (max-width: 768px) {
+    .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+
+    textarea {
+        font-size: 16px !important;
+    }
+}
+
+/* زر التحليل */
+.stButton button {
+    background-color: #4C8CF5 !important;
+    color: white !important;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 18px;
+    width: 100%;
+    /* الزر نفسه يحتاج أحياناً إلى LTR داخلي لترتيب الأيقونات، لذا لا نحدد هنا الاتجاه */
+}
+
+/* صندوق النتائج والتحذيرات (لضمان ظهور رسائل النجاح والخطأ بشكل صحيح) */
+.stAlert {
+    direction: rtl !important;
+    text-align: right !important;
+}
+
+/* العناوين لتكون أوضح */
+h1 {
+    font-size: 32px !important;
+}
+h2 {
+    font-size: 26px !important;
+}
