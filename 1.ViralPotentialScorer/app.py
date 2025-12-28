@@ -63,10 +63,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# تعزيز الـ CSS لدعم RTL والتجاوب الكامل
+# تعزيز الـ CSS لدعم RTL وتنسيق الفوتر والـ Expander
 st.markdown("""
     <style>
-    /* دعم اللغة من اليمين للياسر وتجاوب الخطوط */
     [data-testid="stAppViewContainer"] {
         direction: rtl;
         text-align: right;
@@ -74,15 +73,13 @@ st.markdown("""
     
     .main { text-align: right; direction: rtl; }
     
-    /* تحسين منطقة النص لتكون متجاوبة */
     .stTextArea textarea { 
         text-align: right; 
         direction: rtl; 
         border-radius: 15px;
-        font-size: 16px !important; /* حجم خط مريح للموبايل */
+        font-size: 16px !important;
     }
     
-    /* تحسين الأزرار */
     .stButton button { 
         width: 100%; 
         border-radius: 25px; 
@@ -91,7 +88,6 @@ st.markdown("""
         font-size: 1.1rem;
     }
     
-    /* تنسيق صندوق النتيجة ليكون متجاوباً */
     .score-box { 
         background: #f0f2f6; 
         padding: 5% 2%; 
@@ -101,30 +97,37 @@ st.markdown("""
         margin: 20px 0;
     }
 
-    /* تحسين التذييل */
     .custom-footer { 
-        text-align: center; 
+        display: flex;
+        justify-content: center; 
+        align-items: center;
         padding: 20px; 
         color: #666; 
         font-size: 0.85em; 
         border-top: 1px solid #eee; 
-        margin-top: 50px; 
+        margin-top: 50px;
         direction: rtl;
+        gap: 10px;
+        flex-wrap: wrap;
     }
 
-    /* إخفاء القوائم غير الضرورية على الموبايل لزيادة المساحة */
+    /* تنسيق الـ Expander ليدعم RTL بشكل صحيح */
+    .stDetails {
+        direction: rtl !important;
+        text-align: right !important;
+    }
+
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* محاذاة العناوين والنصوص */
-    h1, h2, h3, p, div {
+    h1, h2, h3, p, div.stMarkdown {
         text-align: right !important;
         direction: rtl !important;
     }
-    
-    /* معالجة عناصر Streamlit الخاصة التي قد لا تتبع الاتجاه افتراضياً */
-    div.stMarkdown {
-        text-align: right;
+
+    .centered-title {
+        text-align: center !important;
+        width: 100%;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -133,8 +136,21 @@ st.markdown("""
 # 4. المنطق البرمجي والواجهة (App Logic)
 # ==========================================
 
-st.title("🎯 مُحلّل احتمالية الانتشار (Viral Scorer)")
-st.write("اكتشف مدى قابلية منشورك للانتشار الفيروسي باستخدام علم نفس المحتوى والذكاء الاصطناعي.")
+st.markdown('<h1 class="centered-title">🎯 مُحلّل احتمالية الانتشار (Viral Scorer)</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align:center !important;">اكتشف مدى قابلية منشورك للانتشار الفيروسي باستخدام علم نفس المحتوى والذكاء الاصطناعي.</p>', unsafe_allow_html=True)
+
+# إضافة الـ Expander لشرح كيفية العمل
+with st.expander("💡 كيف يعمل هذا التطبيق؟"):
+    st.write("""
+    هذا التطبيق ليس مجرد أداة عشوائية، بل يعتمد على خوارزميات الذكاء الاصطناعي المدربة على:
+    * **علم نفس الانتشار (Contagious Framework):** تحليل العوامل الستة التي تجعل المحتوى معدياً مثل القيمة الاجتماعية والمشاعر المحركة.
+    * **تحليل الـ Hooks:** فحص الجمل الافتتاحية ومدى قدرتها على جذب الانتباه في أول ثانية.
+    * **تحسين المشاركة:** اقتراح تعديلات لغوية لزيادة احتمالية قيام الجمهور بمشاركة المنشور (Share).
+    
+    قم بوضع نصك، وسيقوم النظام بمحاكاة رد فعل الجمهور وإعطائك نتيجة دقيقة.
+    """)
+
+st.divider()
 
 post_draft = st.text_area(
     "ألصق مسودة منشورك هنا:",
@@ -191,9 +207,16 @@ if analyze_button and post_draft:
 # ==========================================
 
 st.markdown(
-    '<div class="custom-footer"> AI Product Builder - Layan Khalil | جميع الحقوق محفوظة © 2026</div>', 
+    f"""
+    <div class="custom-footer">
+        <span>جميع الحقوق محفوظة © 2026</span>
+        <span>|</span>
+        <span style="direction: ltr; display: inline-block;">AI Product Builder - Layan Khalil</span>
+    </div>
+    """, 
     unsafe_allow_html=True
 )
+
 if 'start_time' in st.session_state:
     duration = time.time() - st.session_state.start_time
     try:
