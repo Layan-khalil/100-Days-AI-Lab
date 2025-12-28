@@ -5,6 +5,7 @@ import uuid
 import time
 from supabase import create_client, Client
 from google import genai
+import google.api_core.exceptions
 
 # ==========================================
 # 1. إعدادات الأمان والاتصال (Secrets Management)
@@ -60,31 +61,18 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-    /* التنسيق العام من اليمين للياسر */
     [data-testid="stAppViewContainer"] { direction: rtl; text-align: right; }
     .main { text-align: right; direction: rtl; }
-    
-    /* محاذاة العناوين والنصوص لليمين */
     h1, h2, h3, p, div.stMarkdown { text-align: right !important; direction: rtl !important; }
-    
-    /* استثناء لتوسيط العنوان والوصف العلوي */
-    .centered-content { text-align: center !important; width: 100%; display: block; }
-
-    /* تنسيق منطقة النص والأزرار */
     .stTextArea textarea { text-align: right; direction: rtl; border-radius: 15px; font-size: 16px !important; }
     .stButton button { width: 100%; border-radius: 25px; height: 3.5em; font-weight: bold; font-size: 1.1rem; }
-    
-    /* صندوق النتيجة */
     .score-box { background: #f0f2f6; padding: 5% 2%; border-radius: 15px; text-align: center; border: 2px solid #4CAF50; margin: 20px 0; }
-
-    /* تنسيق الفوتر المتباعد والممركز */
     .custom-footer { 
         display: flex; justify-content: center; align-items: center; 
         padding: 20px; color: #666; font-size: 0.85em; 
         border-top: 1px solid #eee; margin-top: 50px; 
         direction: rtl; gap: 10px; flex-wrap: wrap;
     }
-
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     </style>
@@ -97,24 +85,14 @@ st.markdown("""
 st.markdown('<h1 style="text-align:center !important;">🎯 مُحلّل احتمالية الانتشار (Viral Scorer)</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align:center !important;">اكتشف مدى قابلية منشورك للانتشار الفيروسي باستخدام علم نفس المحتوى والذكاء الاصطناعي.</p>', unsafe_allow_html=True)
 
-# الـ Expander مع العوامل الستة
 with st.expander("💡 كيف يعمل هذا التطبيق؟ وما هي العوامل الستة؟"):
     st.write("""
     يعتمد هذا التطبيق على **إطار عمل STEPPS** للعالم *جونا بيرجر*، وهي العوامل الستة التي تجعل المحتوى ينتشر:
-    
-    1. **العملة الاجتماعية (Social Currency):** هل المنشور يجعل صاحبه يبدو متميزاً؟
-    2. **المحفزات (Triggers):** هل يرتبط المحتوى بأحداث يومية متكررة؟
-    3. **المشاعر (Emotion):** هل يثير المحتوى مشاعر قوية تحفز على المشاركة؟
-    4. **الظهور العام (Public):** هل من السهل رؤية الآخرين يتفاعلون معه؟
-    5. **القيمة العملية (Practical Value):** هل يقدم معلومة مفيدة توفر الوقت أو المال؟
-    6. **القصص (Stories):** هل المحتوى مغلف في قصة جذابة؟
-    
-    يقوم الذكاء الاصطناعي بتحليل نصك بناءً على هذه المعايير وقوة الجذب الأولية (The Hook).
+    1. **العملة الاجتماعية** 2. **المحفزات** 3. **المشاعر** 4. **الظهور العام** 5. **القيمة العملية** 6. **القصص**.
     """)
 
 st.divider()
 
-# العبارة المحدثة في الـ placeholder
 post_draft = st.text_area(
     "ألصق مسودة منشورك هنا:", 
     height=200, 
@@ -127,19 +105,34 @@ if st.button("تحليل العوامل النفسية 🚀", type="primary") an
     else:
         track_cta() 
         with st.spinner("جاري فحص المحتوى بالذكاء الاصطناعي..."):
-            try:
-                # استخدام الموديل لتحليل سيكولوجي عميق باللغة العربية
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash-exp",
-                    contents=[f"حلل هذا النص بناءً على معايير Jonah Berger (STEPPS): {post_draft}. أجب بالعربية مع ذكر الدرجة من 100 في أول سطر."]
-                )
+            
+            # تنفيذ الطلب مع آلية إعادة المحاولة (Exponential Backoff)
+            max_retries = 5
+            retry_delay = 1
+            response = None
+            
+            for i in range(max_retries):
+                try:
+                    # تم تغيير الموديل إلى gemini-1.5-flash لضمان استقرار الـ Quota
+                    response = client.models.generate_content(
+                        model="gemini-1.5-flash",
+                        contents=[f"حلل هذا النص بناءً على معايير Jonah Berger (STEPPS): {post_draft}. أجب بالعربية مع ذكر الدرجة من 100 في أول سطر."]
+                    )
+                    break 
+                except Exception as e:
+                    if "429" in str(e) and i < max_retries - 1:
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                    else:
+                        st.error(f"عذراً، النظام مشغول حالياً. يرجى المحاولة بعد لحظات. (الخطأ: {e})")
+                        st.stop()
+            
+            if response:
                 full_analysis = response.text
                 st.success("✅ تم التحليل بنجاح!")
                 st.markdown(f'<div class="score-box"><p>النتيجة المتوقعة</p><h1 style="color:#4CAF50;">{full_analysis.splitlines()[0]}</h1></div>', unsafe_allow_html=True)
                 st.markdown("### 📊 التحليل التفصيلي")
                 st.info(full_analysis)
-            except Exception as e:
-                st.error(f"حدث خطأ: {e}")
 
 # ==========================================
 # 5. الفوتر (Footer)
