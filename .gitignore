@@ -1,0 +1,25 @@
+المجلدات البرمجية
+pycache/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+build/
+dist/
+ملفات الأسرار (مهم جداً عدم رفعها)
+.streamlit/secrets.toml
+secrets.toml
+.env
+.env.local
+ملفات نظام التشغيل والواجهات
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+ملفات فيرسل المؤقتة
+.vercel/
+ملفات البيانات الكبيرة
+*.csv
+*.log
