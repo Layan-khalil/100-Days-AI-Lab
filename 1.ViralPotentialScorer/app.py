@@ -199,6 +199,6 @@ if st.button("🚀 توليد مسار التحويل الآن", use_container_w
 
 st.markdown('<div style="height: 100px;"></div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="custom-footer">جميع الحقوق محفوظة © 2026 | AI Product Builder - Layan Khalil</div>', 
+    '<div class="custom-footer">| AI Product Builder - Layan Khalil | جميع الحقوق محفوظة © 2026</div>', 
     unsafe_allow_html=True
 )
