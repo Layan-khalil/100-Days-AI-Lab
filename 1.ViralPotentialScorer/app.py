@@ -1,153 +1,204 @@
 import streamlit as st
-import pandas as pd
-import os
-import uuid
-import time
-from supabase import create_client, Client
 from google import genai
+from google.genai import types as g_types
+import json
 
-# ==========================================
-# 1. إعدادات الأمان والاتصال (Secrets Management)
-# ==========================================
-
-# الطريقة الرسمية في Streamlit لقراءة المفاتيح السرية سواء محلياً أو في Vercel
-try:
-    SUPABASE_URL = st.secrets["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-except Exception:
-    st.error("⚠️ خطأ: المفاتيح السرية غير موجودة! يرجى إضافتها في Settings > Environment Variables")
-    st.stop()
-
-# إنشاء عملاء الاتصال
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-client = genai.Client(api_key=GOOGLE_API_KEY)
-
-# --- معرف التطبيق الفريد للمنظمة ---
-APP_ID = "viral-potential-scorer-v1"
-
-# ==========================================
-# 2. نظام التتبع (Analytics Engine)
-# ==========================================
-
-def track_metrics():
-    if 'visitor_id' not in st.session_state:
-        st.session_state.visitor_id = str(uuid.uuid4())
-        st.session_state.start_time = time.time()
-        try:
-            # التحقق هل الزائر عائد أم جديد
-            res = supabase.table("visitor_logs").select("*").eq("visitor_id", st.session_state.visitor_id).eq("app_id", APP_ID).execute()
-            is_returning = len(res.data) > 0
-            
-            if not is_returning:
-                supabase.table("visitor_logs").insert({"visitor_id": st.session_state.visitor_id, "app_id": APP_ID}).execute()
-                supabase.rpc('increment_analytics', {'row_id': APP_ID, 'v_inc': 1, 'u_inc': 1, 'r_inc': 0}).execute()
-            else:
-                supabase.rpc('increment_analytics', {'row_id': APP_ID, 'v_inc': 1, 'u_inc': 0, 'r_inc': 1}).execute()
-        except:
-            pass
-
-def track_cta():
-    try:
-        supabase.rpc('increment_cta', {'row_id': APP_ID}).execute()
-    except:
-        pass
-
-# تشغيل التتبع فوراً
-track_metrics()
-
-# ==========================================
-# 3. إعدادات واجهة التطبيق (UI Settings)
-# ==========================================
+# =================================================================
+# 1. إعدادات الصفحة والتنسيق (RTL & Professional UI)
+# =================================================================
 
 st.set_page_config(
-    page_title="مُحلّل إمكانية العدوى الفيروسية",
-    layout="centered", # التنسيق المركزي أفضل لجودة العرض على الموبايل
+    page_title="مُنشئ مسارات التحويل المُصغّرة",
+    layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-# تضمين CSS مباشرة لضمان عدم حدوث خطأ إذا لم يُرفع الملف الخارجي
+# قواعد CSS لفرض التنسيق والزر العريض والمحاذاة
 st.markdown("""
-    <style>
-    .main { text-align: right; direction: rtl; }
-    .stTextArea textarea { text-align: right; direction: rtl; border-radius: 15px; }
-    .stButton button { width: 100%; border-radius: 25px; height: 3em; font-weight: bold; }
-    .custom-footer { text-align: center; padding: 20px; color: #666; font-size: 0.9em; border-top: 1px solid #eee; margin-top: 50px; }
-    .score-box { background: #f0f2f6; padding: 20px; border-radius: 15px; text-align: center; border: 2px solid #4CAF50; }
-    </style>
+<style>
+    /* فرض اتجاه اليمين للغة العربية */
+    html, body, .block-container, .stApp { direction: rtl !important; }
+    h1, h2, h3, h4, h5, h6, p, .stMarkdown, .stText, .stAlert, label { text-align: right !important; direction: rtl !important; }
+
+    /* محاذاة الـ Expander لليمين */
+    div[data-testid="stExpander"] .stMarkdown p, 
+    div[data-testid="stExpander"] .stMarkdown li {
+        text-align: right !important;
+        direction: rtl !important;
+    }
+
+    /* === تنسيق الزر العريض (Stretch) === */
+    div.stButton > button { 
+        font-weight: bold !important; 
+        width: 100% !important; 
+        background-color: #10b981 !important; /* أخضر نمو */
+        color: white !important; 
+        border-radius: 10px !important; 
+        padding: 15px !important; 
+        font-size: 1.2em !important; 
+        border: none !important;
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3) !important; 
+        display: block !important;
+        margin-top: 10px !important;
+    }
+    div.stButton > button:hover { 
+        background-color: #059669 !important; 
+        transform: translateY(-2px) !important; 
+    }
+
+    /* بطاقة المسار */
+    .path-card {
+        background-color: #f0fdf4;
+        padding: 25px;
+        border-radius: 15px;
+        border-right: 8px solid #10b981;
+        margin-top: 25px;
+        text-align: right !important;
+    }
+
+    .step-box {
+        background-color: white;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #d1fae5;
+        margin-bottom: 15px;
+    }
+
+    .step-number {
+        background-color: #10b981;
+        color: white;
+        width: 25px;
+        height: 25px;
+        display: inline-block;
+        text-align: center;
+        border-radius: 50%;
+        margin-left: 10px;
+        font-weight: bold;
+    }
+
+    .custom-footer {
+        position: fixed; bottom: 0; right: 0; left: 0;
+        text-align: center; padding: 10px;
+        background-color: #f8fafc; color: #64748b;
+        font-size: 0.85em; border-top: 1px solid #e2e8f0; z-index: 100;
+    }
+
+    #MainMenu, footer, header { visibility: hidden; }
+</style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# 4. المنطق البرمجي والواجهة (App Logic)
-# ==========================================
+# =================================================================
+# 2. تهيئة نموذج Gemini
+# =================================================================
+client = None
+try:
+    client = genai.Client(api_key="")
+except Exception:
+    client = None
 
-st.title("🎯 مُحلّل احتمالية الانتشار (Viral Scorer)")
-st.write("اكتشف مدى قابلية منشورك للانتشار الفيروسي باستخدام علم نفس المحتوى والذكاء الاصطناعي.")
+# =================================================================
+# 3. دالة إنشاء مسار التحويل
+# =================================================================
 
-post_draft = st.text_area(
-    "ألصق مسودة منشورك هنا:",
-    height=200,
-    placeholder="اكتب التغريدة أو نص الفيديو هنا..."
-)
+def build_conversion_path(topic, target_offer):
+    if not client:
+        return {"error": "فشل الاتصال بالذكاء الاصطناعي."}
 
-analyze_button = st.button("تحليل العوامل النفسية 🚀", type="primary")
+    system_instruction = (
+        "You are a Conversion Rate Optimization (CRO) Expert. "
+        "Create a 3-step micro-conversion path for a given topic and offer. "
+        "Step 1: High-impact CTA. Step 2: Irresistible Lead Magnet. Step 3: Engaging follow-up message. "
+        "Output ONLY in Arabic JSON."
+    )
 
-if analyze_button and post_draft:
-    if len(post_draft.strip()) < 30: # تقليل الحد الأدنى قليلاً للتغريدات القصيرة
-        st.warning("يرجى إدخال نص أطول قليلاً للحصول على تحليل دقيق.")
-        st.stop()
+    response_schema = {
+        "type": "OBJECT",
+        "properties": {
+            "cta": {"type": "STRING", "description": "عبارة النداء لاتخاذ إجراء (CTA)"},
+            "lead_magnet": {"type": "STRING", "description": "نوع المغناطيس الجاذب والمحتوى الخاص به"},
+            "follow_up": {"type": "STRING", "description": "رسالة المتابعة الموصى بها"},
+            "strategy_logic": {"type": "STRING", "description": "لماذا هذا المسار فعال؟"}
+        },
+        "required": ["cta", "lead_magnet", "follow_up", "strategy_logic"]
+    }
 
-    prompt_template = f"""
-    أنت خبير في سيكولوجية الجماهير وعلم نفس الانتشار. حلل النص التالي بناءً على معايير Jonah Berger و Steal Like an Artist.
-    
-    [النص: {post_draft}]
-
-    المطلوب تحليل دقيق باللغة العربية:
-    1. درجة الانتشار الفيروسي (0-100): [أعطِ رقماً فقط]
-    2. العواطف المحركة: [حدد العاطفة ونسبتها]
-    3. تقييم الـ Hook: [لماذا سينجذب الناس في أول ثانيتين؟]
-    4. 3 نصائح ذهبية لزيادة المشاركات (Shares).
-    """
-
-    track_cta() 
-
-    with st.spinner("جاري فحص المحتوى بالذكاء الاصطناعي..."):
-        try:
-            # استخدام الموديل المستقر Gemini 2.0 Flash
-            response = client.models.generate_content(
-                model="gemini-2.0-flash-exp",
-                contents=[prompt_template]
+    try:
+        prompt = f"الموضوع: {topic}, العرض النهائي: {target_offer}. صمم مسار تحويل مصغر."
+        response = client.models.generate_content(
+            model='gemini-2.5-flash-preview-09-2025',
+            contents=prompt,
+            config=g_types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json",
+                response_schema=response_schema
             )
+        )
+        return json.loads(response.text)
+    except Exception as e:
+        return {"error": "حدث خطأ أثناء إنشاء المسار."}
 
-            full_analysis = response.text
-            st.success("✅ تم التحليل بنجاح!")
+# =================================================================
+# 4. واجهة المستخدم
+# =================================================================
 
-            # عرض النتيجة بشكل مميز
-            st.markdown(f"""
-            <div class="score-box">
-                <p style="margin:0; font-size:1.2em;">النتيجة المتوقعة</p>
-                <h1 style="margin:0; color:#4CAF50;">{full_analysis.splitlines()[0] if full_analysis else '--'}</h1>
-            </div>
-            """, unsafe_allow_html=True)
+st.title("🔗 مُنشئ مسارات التحويل المُصغّرة")
+st.write("حول جمهورك العابر إلى مشتركين أوفياء عبر مسار تحويل ذكي مكون من 3 خطوات.")
 
-            st.markdown("### 📊 التحليل التفصيلي")
-            st.info(full_analysis)
+with st.expander("💡 ما هو التحويل المُصغّر (Micro-Conversion)؟"):
+    st.markdown("""
+    <div style="text-align: right; direction: rtl;">
+    التحويل المصغر هو إجراء بسيط يسبق عملية الشراء الكبرى، مثل تحميل دليل مجاني أو الاشتراك في نشرة بريدية. 
+    الفكرة هي تقليل "المقاومة" لدى العميل وبناء الثقة تدريجياً عبر:
+    <ul>
+        <li><b>نداء إجراء (CTA):</b> يثير الفضول ولا يطلب الكثير.</li>
+        <li><b>مغناطيس (Lead Magnet):</b> يعطي قيمة فورية مقابل البريد الإلكتروني.</li>
+        <li><b>المتابعة:</b> تضمن عدم نسيان العميل لك وتجهزه للخطوة التالية.</li>
+    </ul>
+    </div>
+    """, unsafe_allow_html=True)
 
-        except Exception as e:
-            st.error(f"حدث خطأ في الاتصال بالذكاء الاصطناعي: {e}")
+st.markdown("---")
 
-# ==========================================
-# 5. التذييل وتتبع الوقت
-# ==========================================
+col1, col2 = st.columns(2)
+with col1:
+    topic = st.text_input("1. موضوع المحتوى أو المنشور:", placeholder="مثلاً: نصائح لزيادة إنتاجية العمل عن بعد")
+with col2:
+    offer = st.text_input("2. العرض أو الخدمة النهائية:", placeholder="مثلاً: كورس إدارة الوقت الاحترافي")
 
+# الزر العريض
+if st.button("🚀 توليد مسار التحويل الآن", use_container_width=True):
+    if not topic.strip() or not offer.strip():
+        st.warning("الرجاء إدخال الموضوع والعرض لضمان دقة المسار.")
+    else:
+        with st.spinner("جاري تصميم هندسة التحويل..."):
+            result = build_conversion_path(topic, offer)
+            
+            if "error" in result:
+                st.error(result["error"])
+            else:
+                st.markdown("### 🗺️ مسار التحويل المقترح")
+                st.markdown(f"""
+                <div class="path-card">
+                    <div class="step-box">
+                        <span class="step-number">1</span> <b>عبارة النداء (CTA):</b><br>
+                        <p style="color: #065f46; margin-top: 5px;">{result.get('cta', '')}</p>
+                    </div>
+                    <div class="step-box">
+                        <span class="step-number">2</span> <b>المغناطيس الجاذب (Lead Magnet):</b><br>
+                        <p style="color: #065f46; margin-top: 5px;">{result.get('lead_magnet', '')}</p>
+                    </div>
+                    <div class="step-box">
+                        <span class="step-number">3</span> <b>رسالة المتابعة الأولى:</b><br>
+                        <p style="color: #065f46; margin-top: 5px;">{result.get('follow_up', '')}</p>
+                    </div>
+                    <p style="font-size: 0.9em; border-top: 1px solid #d1fae5; padding-top: 10px;">
+                        🎯 <b>المنطق الاستراتيجي:</b> {result.get('strategy_logic', '')}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+
+st.markdown('<div style="height: 100px;"></div>', unsafe_allow_html=True)
 st.markdown(
     '<div class="custom-footer">جميع الحقوق محفوظة © 2026 | AI Product Builder - Layan Khalil</div>', 
     unsafe_allow_html=True
 )
-
-if 'start_time' in st.session_state:
-    duration = time.time() - st.session_state.start_time
-    try:
-        supabase.rpc('update_time', {'row_id': APP_ID, 'sec': duration}).execute()
-    except:
-        pass
