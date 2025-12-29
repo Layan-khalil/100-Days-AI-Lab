@@ -59,35 +59,23 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# تعزيز الـ CSS لضمان محاذاة أقصى اليمين وتنسيق الـ Expander
 st.markdown("""
     <style>
-    /* فرض الاتجاه من اليمين لليسار على كل العناصر */
     [data-testid="stAppViewContainer"], .main, .stApp {
         direction: rtl !important;
         text-align: right !important;
     }
     
-    /* ضمان محاذاة النصوص داخل الـ Expander والمربعات */
     div[data-testid="stExpander"] div, div.stMarkdown, p, li {
         text-align: right !important;
         direction: rtl !important;
     }
 
-    /* محاذاة العناوين */
     h1, h2, h3 {
         text-align: right !important;
         direction: rtl !important;
     }
-    
-    /* استثناء لتوسيط العنوان العلوي فقط */
-    .centered-header {
-        text-align: center !important;
-        width: 100%;
-        display: block;
-    }
 
-    /* تنسيق المدخلات */
     .stTextArea textarea {
         text-align: right !important;
         direction: rtl !important;
@@ -95,7 +83,6 @@ st.markdown("""
         font-size: 16px !important;
     }
 
-    /* تحسين الأزرار */
     .stButton button {
         width: 100%;
         border-radius: 25px;
@@ -103,7 +90,6 @@ st.markdown("""
         font-weight: bold;
     }
     
-    /* صندوق النتيجة */
     .score-box {
         background: #f0f2f6;
         padding: 5% 2%;
@@ -113,7 +99,6 @@ st.markdown("""
         margin: 20px 0;
     }
 
-    /* الفوتر (جميع الحقوق محفوظة يمين | الاسم يسار) */
     .custom-footer { 
         display: flex;
         justify-content: center;
@@ -137,11 +122,9 @@ st.markdown("""
 # 4. واجهة التطبيق (App UI)
 # ==========================================
 
-# العنوان ممركز جمالياً
 st.markdown('<h1 style="text-align:center !important;">🎯 مُحلّل احتمالية الانتشار (Viral Scorer)</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align:center !important;">اكتشف مدى قابلية منشورك للانتشار الفيروسي باستخدام علم نفس المحتوى والذكاء الاصطناعي.</p>', unsafe_allow_html=True)
 
-# الـ Expander مع شرح مفصل ومحاذاة لليمين
 with st.expander("💡 كيف يعمل هذا التطبيق؟ شرح عوامل الانتشار الستة"):
     st.markdown("""
     <div style="text-align: right; direction: rtl;">
@@ -174,11 +157,14 @@ if st.button("تحليل العوامل النفسية 🚀", type="primary") an
         st.warning("يرجى إدخال نص أطول قليلاً للحصول على تحليل دقيق.")
     else:
         track_cta() 
-        with st.spinner("جاري تهيئة الموديل (انتظار 5 ثوانٍ لتجنب الضغط)..."):
-            # مهلة الـ 5 ثوانٍ لضمان استقرار Gemini 2.0
-            time.sleep(5)
+        
+        # استخدام الـ Spinner مع رسالة توضح الانتظار
+        with st.spinner("جاري التحليل يرجى الانتظار قليلاً"):
+            # تنفيذ الانتظار المطلوب (10 ثوانٍ)
+            time.sleep(10)
             
             try:
+                # محاولة الاتصال بـ Gemini 2.0
                 response = client.models.generate_content(
                     model="gemini-2.0-flash-exp",
                     contents=[f"حلل هذا النص بناءً على معايير Jonah Berger (STEPPS): {post_draft}. أجب بالعربية مع ذكر الدرجة من 100 في أول سطر."]
@@ -194,7 +180,10 @@ if st.button("تحليل العوامل النفسية 🚀", type="primary") an
                 st.info(full_analysis)
                 
             except Exception as e:
-                st.error(f"عذراً، النظام مشغول حالياً. يرجى المحاولة بعد لحظات. (الخطأ: {e})")
+                if "429" in str(e):
+                    st.error("عذراً، يبدو أن ضغط المستخدمين عالٍ جداً حالياً. يرجى الانتظار دقيقة واحدة ثم إعادة المحاولة.")
+                else:
+                    st.error(f"حدث خطأ غير متوقع: {e}")
 
 # ==========================================
 # 5. الفوتر (Footer)
