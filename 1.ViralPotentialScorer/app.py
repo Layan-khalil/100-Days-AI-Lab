@@ -59,20 +59,75 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# تعزيز الـ CSS لضمان محاذاة أقصى اليمين وتنسيق الـ Expander
 st.markdown("""
     <style>
-    [data-testid="stAppViewContainer"] { direction: rtl; text-align: right; }
-    .main { text-align: right; direction: rtl; }
-    h1, h2, h3, p, div.stMarkdown { text-align: right !important; direction: rtl !important; }
-    .stTextArea textarea { text-align: right; direction: rtl; border-radius: 15px; font-size: 16px !important; }
-    .stButton button { width: 100%; border-radius: 25px; height: 3.5em; font-weight: bold; font-size: 1.1rem; }
-    .score-box { background: #f0f2f6; padding: 5% 2%; border-radius: 15px; text-align: center; border: 2px solid #4CAF50; margin: 20px 0; }
-    .custom-footer { 
-        display: flex; justify-content: center; align-items: center; 
-        padding: 20px; color: #666; font-size: 0.85em; 
-        border-top: 1px solid #eee; margin-top: 50px; 
-        direction: rtl; gap: 10px; flex-wrap: wrap;
+    /* فرض الاتجاه من اليمين لليسار على كل العناصر */
+    [data-testid="stAppViewContainer"], .main, .stApp {
+        direction: rtl !important;
+        text-align: right !important;
     }
+    
+    /* ضمان محاذاة النصوص داخل الـ Expander والمربعات */
+    div[data-testid="stExpander"] div, div.stMarkdown, p, li {
+        text-align: right !important;
+        direction: rtl !important;
+    }
+
+    /* محاذاة العناوين */
+    h1, h2, h3 {
+        text-align: right !important;
+        direction: rtl !important;
+    }
+    
+    /* استثناء لتوسيط العنوان العلوي فقط */
+    .centered-header {
+        text-align: center !important;
+        width: 100%;
+        display: block;
+    }
+
+    /* تنسيق المدخلات */
+    .stTextArea textarea {
+        text-align: right !important;
+        direction: rtl !important;
+        border-radius: 15px;
+        font-size: 16px !important;
+    }
+
+    /* تحسين الأزرار */
+    .stButton button {
+        width: 100%;
+        border-radius: 25px;
+        height: 3.5em;
+        font-weight: bold;
+    }
+    
+    /* صندوق النتيجة */
+    .score-box {
+        background: #f0f2f6;
+        padding: 5% 2%;
+        border-radius: 15px;
+        text-align: center !important;
+        border: 2px solid #4CAF50;
+        margin: 20px 0;
+    }
+
+    /* الفوتر (جميع الحقوق محفوظة يمين | الاسم يسار) */
+    .custom-footer { 
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+        color: #666;
+        font-size: 0.85em;
+        border-top: 1px solid #eee;
+        margin-top: 50px;
+        direction: rtl !important;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     </style>
@@ -82,14 +137,29 @@ st.markdown("""
 # 4. واجهة التطبيق (App UI)
 # ==========================================
 
+# العنوان ممركز جمالياً
 st.markdown('<h1 style="text-align:center !important;">🎯 مُحلّل احتمالية الانتشار (Viral Scorer)</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align:center !important;">اكتشف مدى قابلية منشورك للانتشار الفيروسي باستخدام علم نفس المحتوى والذكاء الاصطناعي.</p>', unsafe_allow_html=True)
 
-with st.expander("💡 كيف يعمل هذا التطبيق؟ وما هي العوامل الستة؟"):
-    st.write("""
-    يعتمد هذا التطبيق على **إطار عمل STEPPS** للعالم *جونا بيرجر*، وهي العوامل الستة التي تجعل المحتوى ينتشر:
-    1. **العملة الاجتماعية** 2. **المحفزات** 3. **المشاعر** 4. **الظهور العام** 5. **القيمة العملية** 6. **القصص**.
-    """)
+# الـ Expander مع شرح مفصل ومحاذاة لليمين
+with st.expander("💡 كيف يعمل هذا التطبيق؟ شرح عوامل الانتشار الستة"):
+    st.markdown("""
+    <div style="text-align: right; direction: rtl;">
+    يعتمد هذا التطبيق على منهجية العلم <b>"STEPPS"</b> للعالم جونا بيرجر، وهي ستة عوامل تجعل المحتوى ينتشر كالنار في الهشيم:
+    <br><br>
+    <b>1. العملة الاجتماعية (Social Currency):</b> نحن نشارك الأشياء التي تجعلنا نبدو أذكياء أو مطلعين أو ناجحين أمام الآخرين. المحتوى الذي يمنح المستخدم قيمة اجتماعية يرتفع احتمال مشاركته.
+    <br><br>
+    <b>2. المحفزات (Triggers):</b> المحتوى الناجح هو الذي يذكره الناس باستمرار لأنه مرتبط ببيئتهم اليومية. (مثلاً: منشور عن القهوة سيتذكره الناس كل صباح تلقائياً).
+    <br><br>
+    <b>3. المشاعر (Emotion):</b> عندما نهتم، نشارك. المشاعر ذات الاستثارة العالية (مثل الدهشة، الإعجاب، أو الفضول الشديد) تدفع الناس لاتخاذ إجراء ومشاركة المحتوى.
+    <br><br>
+    <b>4. الظهور العام (Public):</b> كلما كان من السهل رؤية الآخرين وهم يتفاعلون مع المحتوى، زاد احتمال تقليدهم. الناس يقلدون ما يرونه شائعاً ومنتشراً.
+    <br><br>
+    <b>5. القيمة العملية (Practical Value):</b> نحن نحب مساعدة الآخرين. المنشورات التي تقدم نصائح حقيقية، توفيراً للوقت، أو توفيراً للمال هي الأكثر انتشاراً لأنها مفيدة.
+    <br><br>
+    <b>6. القصص (Stories):</b> المعلومات تنتشر بشكل أفضل إذا كانت داخل قصة مشوقة. القصص هي "الأوعية" التي تحمل الأفكار وتجعلها سهلة الحفظ والانتقال.
+    </div>
+    """, unsafe_allow_html=True)
 
 st.divider()
 
@@ -104,35 +174,27 @@ if st.button("تحليل العوامل النفسية 🚀", type="primary") an
         st.warning("يرجى إدخال نص أطول قليلاً للحصول على تحليل دقيق.")
     else:
         track_cta() 
-        with st.spinner("جاري فحص المحتوى بالذكاء الاصطناعي..."):
+        with st.spinner("جاري تهيئة الموديل (انتظار 5 ثوانٍ لتجنب الضغط)..."):
+            # مهلة الـ 5 ثوانٍ لضمان استقرار Gemini 2.0
+            time.sleep(5)
             
-            # تنفيذ الطلب مع آلية إعادة المحاولة (Exponential Backoff)
-            max_retries = 5
-            retry_delay = 1
-            response = None
-            
-            for i in range(max_retries):
-                try:
-                    # تم تغيير الموديل إلى gemini-1.5-flash لضمان استقرار الـ Quota
-                    response = client.models.generate_content(
-                        model="gemini-1.5-flash",
-                        contents=[f"حلل هذا النص بناءً على معايير Jonah Berger (STEPPS): {post_draft}. أجب بالعربية مع ذكر الدرجة من 100 في أول سطر."]
-                    )
-                    break 
-                except Exception as e:
-                    if "429" in str(e) and i < max_retries - 1:
-                        time.sleep(retry_delay)
-                        retry_delay *= 2
-                    else:
-                        st.error(f"عذراً، النظام مشغول حالياً. يرجى المحاولة بعد لحظات. (الخطأ: {e})")
-                        st.stop()
-            
-            if response:
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash-exp",
+                    contents=[f"حلل هذا النص بناءً على معايير Jonah Berger (STEPPS): {post_draft}. أجب بالعربية مع ذكر الدرجة من 100 في أول سطر."]
+                )
+                
                 full_analysis = response.text
                 st.success("✅ تم التحليل بنجاح!")
-                st.markdown(f'<div class="score-box"><p>النتيجة المتوقعة</p><h1 style="color:#4CAF50;">{full_analysis.splitlines()[0]}</h1></div>', unsafe_allow_html=True)
+                
+                score_line = full_analysis.splitlines()[0]
+                st.markdown(f'<div class="score-box"><p>النتيجة المتوقعة</p><h1 style="color:#4CAF50;">{score_line}</h1></div>', unsafe_allow_html=True)
+                
                 st.markdown("### 📊 التحليل التفصيلي")
                 st.info(full_analysis)
+                
+            except Exception as e:
+                st.error(f"عذراً، النظام مشغول حالياً. يرجى المحاولة بعد لحظات. (الخطأ: {e})")
 
 # ==========================================
 # 5. الفوتر (Footer)
