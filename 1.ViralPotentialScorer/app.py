@@ -21,6 +21,7 @@ except Exception:
 
 # إنشاء عملاء الاتصال
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# استخدام العميل المتوافق مع Gemini 2.0
 client = genai.Client(api_key=GOOGLE_API_KEY)
 
 # --- معرف التطبيق الفريد ---
@@ -31,22 +32,35 @@ APP_ID = "viral-potential-scorer-v1"
 # ==========================================
 
 def track_metrics():
+    """تتبع الزيارات وزيادة العدادات عبر الدوال الأمنية"""
     if 'visitor_id' not in st.session_state:
         st.session_state.visitor_id = str(uuid.uuid4())
-        st.session_state.start_time = time.time()
         try:
-            res = supabase.table("visitor_logs").select("*").eq("visitor_id", st.session_state.visitor_id).eq("app_id", APP_ID).execute()
-            if len(res.data) == 0:
-                supabase.table("visitor_logs").insert({"visitor_id": st.session_state.visitor_id, "app_id": APP_ID}).execute()
-                supabase.rpc('increment_analytics', {'row_id': APP_ID, 'v_inc': 1, 'u_inc': 1, 'r_inc': 0}).execute()
-            else:
-                supabase.rpc('increment_analytics', {'row_id': APP_ID, 'v_inc': 1, 'u_inc': 0, 'r_inc': 1}).execute()
-        except: pass
+            # تسجيل الزيارة في جدول visitor_logs (Insert Only)
+            supabase.table("visitor_logs").insert({
+                "visitor_id": st.session_state.visitor_id, 
+                "app_id": APP_ID
+            }).execute()
+            
+            # زيادة عداد التحليلات عبر الدالة الآمنة (RPC)
+            supabase.rpc('increment_analytics', {
+                'row_id': APP_ID, 
+                'v_inc': 1, 
+                'u_inc': 1, 
+                'r_inc': 0
+            }).execute()
+        except:
+            # صمت تقني لضمان تجربة المستخدم
+            pass
 
 def track_cta():
-    try: supabase.rpc('increment_cta', {'row_id': APP_ID}).execute()
-    except: pass
+    """زيادة عداد استخدام التحليل (CTA)"""
+    try:
+        supabase.rpc('increment_cta', {'row_id': APP_ID}).execute()
+    except:
+        pass
 
+# تشغيل التتبع عند التحميل
 track_metrics()
 
 # ==========================================
@@ -88,6 +102,8 @@ st.markdown("""
         border-radius: 25px;
         height: 3.5em;
         font-weight: bold;
+        background-color: #4CAF50 !important;
+        color: white !important;
     }
     
     .score-box {
@@ -156,15 +172,15 @@ if st.button("تحليل العوامل النفسية 🚀", type="primary") an
     if len(post_draft.strip()) < 30:
         st.warning("يرجى إدخال نص أطول قليلاً للحصول على تحليل دقيق.")
     else:
+        # تسجيل محاولة التحليل في الداتابيس
         track_cta() 
         
-        # استخدام الـ Spinner مع رسالة توضح الانتظار
         with st.spinner("جاري التحليل يرجى الانتظار قليلاً"):
-            # تنفيذ الانتظار المطلوب (10 ثوانٍ)
+            # الانتظار المطلوب (10 ثوانٍ)
             time.sleep(10)
             
             try:
-                # محاولة الاتصال بـ Gemini 2.0
+                # طلب المحتوى من Gemini 2.0 Flash
                 response = client.models.generate_content(
                     model="gemini-2.0-flash-exp",
                     contents=[f"حلل هذا النص بناءً على معايير Jonah Berger (STEPPS): {post_draft}. أجب بالعربية مع ذكر الدرجة من 100 في أول سطر."]
@@ -173,6 +189,7 @@ if st.button("تحليل العوامل النفسية 🚀", type="primary") an
                 full_analysis = response.text
                 st.success("✅ تم التحليل بنجاح!")
                 
+                # استخراج الدرجة من السطر الأول وعرضها
                 score_line = full_analysis.splitlines()[0]
                 st.markdown(f'<div class="score-box"><p>النتيجة المتوقعة</p><h1 style="color:#4CAF50;">{score_line}</h1></div>', unsafe_allow_html=True)
                 
@@ -180,10 +197,11 @@ if st.button("تحليل العوامل النفسية 🚀", type="primary") an
                 st.info(full_analysis)
                 
             except Exception as e:
+                # رسائل خطأ ودودة للمستخدم دون تفاصيل تقنية مزعجة
                 if "429" in str(e):
-                    st.error("عذراً، يبدو أن ضغط المستخدمين عالٍ جداً حالياً. يرجى الانتظار دقيقة واحدة ثم إعادة المحاولة.")
+                    st.error("عذراً، هناك ضغط كبير على الخادم حالياً. يرجى المحاولة مرة أخرى بعد دقيقة واحدة.")
                 else:
-                    st.error(f"حدث خطأ غير متوقع: {e}")
+                    st.error("عذراً، حدث خطأ أثناء الاتصال بالذكاء الاصطناعي. يرجى المحاولة لاحقاً.")
 
 # ==========================================
 # 5. الفوتر (Footer)
