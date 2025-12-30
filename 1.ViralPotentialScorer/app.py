@@ -1,157 +1,138 @@
 import streamlit as st
 import uuid
 import time
-from datetime import datetime
 from supabase import create_client, Client
 from google import genai
 from google.genai import types
 
 # ==========================================
-# 1. إعدادات الأمان والاتصال (Secrets)
+# 1. إعدادات الأمان والاتصال
 # ==========================================
 try:
     SUPABASE_URL = st.secrets["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-except Exception:
-    st.error("Missing Secrets! Please check your settings.")
+except Exception as e:
+    st.error("⚠️ فشل في تحميل المفاتيح السرية (Secrets). تأكد من إعدادات الـ Cloud.")
     st.stop()
 
-# إنشاء العملاء
+# تهيئة العملاء
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai_client = genai.Client(api_key=GOOGLE_API_KEY)
 APP_ID = "viral-potential-scorer-v1"
 
 # ==========================================
-# 2. وظائف الداتا بيس (Database & Analytics)
+# 2. نظام التتبع وتشخيص الأخطاء (DB Tracking)
 # ==========================================
 
 def track_visit():
-    """تسجيل الزيارة الأولى للجلسة"""
-    if 'tracked_session' not in st.session_state:
-        st.session_state.tracked_session = True
-        visitor_id = str(uuid.uuid4())
+    """يسجل الزيارة ويطبع الخطأ في الـ Logs إذا فشل"""
+    if 'tracked_once' not in st.session_state:
+        st.session_state.tracked_once = True
+        vid = str(uuid.uuid4())
         
         try:
-            # إضافة سجل الزيارة الخام
-            supabase.table("visitor_logs").insert({
-                "visitor_id": visitor_id,
+            # محاولة الإدخال في جدول visitor_logs
+            res_log = supabase.table("visitor_logs").insert({
+                "visitor_id": vid, 
                 "app_id": APP_ID
             }).execute()
             
-            # تحديث عداد الزوار الفريدين والمشاهدات
-            supabase.rpc('increment_analytics', {
-                'row_id': APP_ID,
-                'v_inc': 1,
-                'u_inc': 1,
+            # محاولة تحديث جدول analytics
+            res_rpc = supabase.rpc('increment_analytics', {
+                'row_id': APP_ID, 
+                'v_inc': 1, 
+                'u_inc': 1, 
                 'r_inc': 0
             }).execute()
-        except:
-            pass
+            
+        except Exception as e:
+            # طباعة الخطأ في سجلات السيرفر للمطور
+            st.write(f"<!-- DB Error Trace: {str(e)} -->", unsafe_allow_html=True)
+            print(f"CRITICAL DB ERROR: {e}")
 
-def track_cta_action():
-    """تسجيل ضغطة زر التحليل"""
+def track_cta():
+    """يسجل ضغطة الزر ويطبع الخطأ في الـ Logs إذا فشل"""
     try:
         supabase.rpc('increment_cta', {'row_id': APP_ID}).execute()
-    except:
-        pass
+    except Exception as e:
+        print(f"CTA EVENT ERROR: {e}")
 
-# تشغيل تتبع الزيارة فور تحميل الصفحة
+# تنفيذ التتبع فوراً
 track_visit()
 
 # ==========================================
-# 3. التصميم وواجهة المستخدم (UI)
+# 3. واجهة المستخدم (UI Design)
 # ==========================================
 st.set_page_config(page_title="Viral Scorer | مُحلّل الانتشار", layout="centered")
 
 st.markdown("""
     <style>
     [data-testid="stAppViewContainer"] { direction: rtl; text-align: right; }
-    .stTextArea textarea { direction: rtl; text-align: right; border-radius: 12px; font-size: 16px; }
+    .stTextArea textarea { direction: rtl; text-align: right; border-radius: 12px; border: 1px solid #ddd; }
     .stButton button { 
-        width: 100%; border-radius: 25px; height: 3.8em; 
+        width: 100%; border-radius: 25px; height: 3.5em; 
         background-color: #e63946 !important; color: white !important; 
-        font-weight: bold; font-size: 18px; border: none;
+        font-weight: bold; border: none; transition: 0.3s;
     }
+    .stButton button:hover { background-color: #c1121f !important; transform: scale(1.02); }
     .score-box { 
-        background: #ffffff; padding: 30px; border-radius: 20px; 
-        text-align: center; border: 3px solid #e63946; margin: 25px 0;
-        box-shadow: 0 4px 15px rgba(230, 57, 70, 0.1);
+        background: #f8f9fa; padding: 20px; border-radius: 15px; 
+        text-align: center; border: 2px solid #e63946; margin: 20px 0;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
     }
-    .factor-item {
-        background: #f8f9fa; padding: 10px 15px; border-right: 5px solid #e63946;
-        margin: 5px 0; border-radius: 5px; font-weight: bold;
-    }
-    .custom-footer { text-align: center; color: #888; margin-top: 60px; padding: 20px; border-top: 1px solid #eee; }
+    .footer { text-align: center; color: #777; font-size: 0.8em; margin-top: 50px; border-top: 1px solid #eee; padding-top: 20px; }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🎯 مُحلّل احتمالية الانتشار الفيروسي")
-st.write("أدخل نص منشورك أو سكريبت الفيديو لتحليله بناءً على علم نفس المحتوى (STEPPS).")
+st.title("🎯 مُحلّل احتمالية الانتشار")
+st.markdown("حلل منشوراتك بناءً على معايير علم نفس المحتوى الستة (STEPPS) لضمان أعلى وصول.")
 
-with st.expander("💡 تعرف على العوامل الستة للانتشار (Jonah Berger)"):
-    st.markdown("""
-    - **العملة الاجتماعية:** هل يجعل المحتوى المشارك يبدو ذكياً؟
-    - **المحفزات:** هل المحتوى مرتبط بأحداث يومية متكررة؟
-    - **المشاعر:** هل يثير عواطف قوية (دهشة، حماس، فضول)؟
-    - **الظهور العام:** هل من السهل رؤية وتقليد هذا السلوك؟
-    - **القيمة العملية:** هل يقدم فائدة حقيقية أو نصيحة موفرة للجهد؟
-    - **القصص:** هل المعلومة مغلفة بقصة مشوقة؟
-    """)
-
-post_content = st.text_area("ألصق النص المراد تحليله هنا:", height=180, placeholder="مثلاً: قصة نجاح، نصيحة تعليمية، أو عرض ترويجي...")
+post_input = st.text_area("ألصق نص المنشور أو الفيديو هنا:", height=150, placeholder="اكتب هنا...")
 
 # ==========================================
-# 4. معالجة التحليل (AI Analytics)
+# 4. محرك التحليل (AI Analytics)
 # ==========================================
-if st.button("بدء التحليل العلمي 🚀"):
-    if not post_content.strip() or len(post_content.strip()) < 15:
-        st.warning("الرجاء إدخال نص كافٍ (15 حرفاً على الأقل) ليتمكن النظام من تحليله.")
+if st.button("تحليل الآن 🚀"):
+    if not post_input.strip():
+        st.warning("يرجى إدخال نص أولاً.")
     else:
-        # تسجيل ضغطة الزر في الداتا بيس
-        track_cta_action()
+        track_cta() # تسجيل المحاولة في الداتا بيس
         
-        with st.spinner("جاري فحص الروابط النفسية في النص..."):
+        with st.spinner("جاري التحليل العلمي..."):
             try:
-                # إعدادات صارمة جداً لضمان ثبات النتيجة 100% لنفس النص
-                strict_config = types.GenerateContentConfig(
-                    temperature=0.0, # صفر تعني ثبات رياضي
+                # إعدادات لضمان ثبات النتيجة 100% (Deterministic)
+                generation_config = types.GenerateContentConfig(
+                    temperature=0.0, # لا يوجد عشوائية
                     top_p=0.1,
-                    top_k=1,
-                    max_output_tokens=1000
+                    top_k=1
                 )
                 
-                analysis_prompt = f"""
-                أنت خبير سيكولوجي متخصص في تحليل المحتوى الفيروسي.
-                مهمتك: تحليل النص المرفق بناءً على معايير STEPPS الستة.
+                # توجيه الموديل للالتزام بالمعايير والدرجات الثابتة
+                prompt_text = f"""
+                حلل النص التالي بناءً على معايير STEPPS لـ Jonah Berger.
+                يجب أن تكون الدرجة النهائية ثابتة ومنطقية ولا تتغير عند إعادة طلب نفس النص.
                 
-                قواعد صارمة:
-                1. يجب أن تكون النتائج والدرجات الرقمية ثابتة تماماً لنفس النص ولا تتغير عند إعادة المحاولة.
-                2. في السطر الأول، اكتب فقط: (النتيجة المتوقعة: X/100).
-                3. في الأسطر التالية، أعطِ تقييماً لكل عامل من العوامل الستة من 10 (مثلاً: المشاعر: 8/10) مع شرح قصير جداً.
+                التنسيق المطلوب:
+                1. في أول سطر: (النتيجة: X/100)
+                2. ثم تقييم العوامل الستة من 10 مع شرح بسيط جداً.
                 
-                النص المراد تحليله:
-                {post_content}
+                النص: {post_input}
                 """
-
+                
                 response = genai_client.models.generate_content(
-                    model="gemini-2.0-flash-exp",
-                    contents=analysis_prompt,
-                    config=strict_config
+                    model="gemini-2.5-flash-preview-09-2025",
+                    contents=prompt_text,
+                    config=generation_config
                 )
                 
-                analysis_result = response.text
-                lines = analysis_result.split('\n')
-                main_score = lines[0] if lines else "جاري استخراج النتيجة..."
+                output = response.text
+                final_score = output.split('\n')[0]
                 
-                # عرض النتيجة الكبيرة
-                st.markdown(f'<div class="score-box"><p style="margin:0; color:#666;">إجمالي احتمالية الانتشار</p><h1 style="color:#e63946; margin:0; font-size:48px;">{main_score}</h1></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="score-box"><h2 style="color:#e63946;">{final_score}</h2></div>', unsafe_allow_html=True)
+                st.info(output)
                 
-                st.subheader("📊 تفاصيل العوامل السيكولوجية")
-                st.info(analysis_result)
-                
-            except Exception:
-                st.error("عذراً، تعذر الاتصال بمحرك التحليل. تأكد من إعدادات API Key.")
+            except Exception as e:
+                st.error("تعذر الاتصال بالذكاء الاصطناعي حالياً. يرجى المحاولة لاحقاً.")
 
-# الفوتر الثابت
-st.markdown('<div class="custom-footer">جميع الحقوق محفوظة © 2026 | AI Product Builder - Layan Khalil</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">جميع الحقوق محفوظة © 2026 | AI Product Builder - Layan Khalil</div>', unsafe_allow_html=True)
