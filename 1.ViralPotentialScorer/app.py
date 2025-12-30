@@ -102,7 +102,7 @@ st.markdown("""
         border-radius: 25px;
         height: 3.5em;
         font-weight: bold;
-        background-color: #4CAF50 !important;
+        background-color: #e63946 !important;
         color: white !important;
     }
     
