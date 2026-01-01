@@ -226,4 +226,5 @@ if st.button("تحليل الآن 🚀"):
 # =========================================================
 # 7) فوتر
 # =========================================================
-st.markdown('<div class=".footer-ltr">جميع الحقوق محفوظة © 2026 | AI Product Builder - Layan Khalil</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer-ltr">جميع الحقوق محفوظة © 2026 | AI Product Builder - Layan Khalil</div>', unsafe_allow_html=True)
+
