@@ -12,67 +12,55 @@ try:
     SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 except Exception:
-    st.error("⚠️ فشل في تحميل المفاتيح السرية (Secrets).")
+    st.error("⚠️ خطأ في المفاتيح السرية.")
     st.stop()
 
-# تهيئة العملاء
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai_client = genai.Client(api_key=GOOGLE_API_KEY)
 APP_ID = "viral-potential-scorer-v1"
 
 # ==========================================
-# 2. وظائف التتبع المحدثة (Database Integration)
+# 2. نظام التتبع (Analytics)
 # ==========================================
-
 def track_visit():
-    """تسجيل الزيارة وتحديث الإحصائيات عبر RPC"""
-    if 'session_tracked' not in st.session_state:
-        st.session_state.session_tracked = True
-        visitor_id = str(uuid.uuid4())
-        
+    if 'visit_logged' not in st.session_state:
+        st.session_state.visit_logged = True
         try:
-            # 1. تسجيل بصمة الزائر في visitor_logs
-            supabase.table("visitor_logs").insert({
-                "visitor_id": visitor_id,
-                "app_id": APP_ID
-            }).execute()
-            
-            # 2. استدعاء دالة increment_analytics لتحديث العدادات
-            # يتم إرسال 1 للمشاهدات، 1 للزوار الفريدين، 0 للعائدين (كبداية)
-            supabase.rpc('increment_analytics', {
-                'row_id': APP_ID,
-                'v_inc': 1,
-                'u_inc': 1,
-                'r_inc': 0
-            }).execute()
-        except Exception as e:
-            # طباعة الخطأ في سجلات السيرفر فقط للمطور
-            print(f"Tracking Error: {e}")
+            vid = str(uuid.uuid4())
+            supabase.table("visitor_logs").insert({"visitor_id": vid, "app_id": APP_ID}).execute()
+            supabase.rpc('increment_analytics', {'row_id': APP_ID, 'v_inc': 1, 'u_inc': 1, 'r_inc': 0}).execute()
+        except:
+            pass
 
-def track_cta_event():
-    """تسجيل ضغطة زر التحليل (CTA) عبر RPC"""
-    try:
-        supabase.rpc('increment_cta', {'row_id': APP_ID}).execute()
-    except Exception as e:
-        print(f"CTA Error: {e}")
-
-# تنفيذ التتبع عند تحميل الصفحة
 track_visit()
 
 # ==========================================
-# 3. واجهة المستخدم والتصميم (RTL Support)
+# 3. واجهة المستخدم (UI & CSS)
 # ==========================================
-st.set_page_config(page_title="Viral Scorer | مُحلّل الانتشار", layout="centered")
+st.set_page_config(page_title="Viral Scorer", layout="centered")
 
-# تنسيق RTL لكامل التطبيق مع استثناء الفوتر
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
     
-    html, body, [data-testid="stAppViewContainer"], .main {
+    html, body, [data-testid="stAppViewContainer"] {
         direction: rtl !important;
         text-align: right !important;
         font-family: 'Cairo', sans-serif;
+    }
+    
+    /* توسيط العنوان */
+    .main-title {
+        text-align: center !important;
+        color: #e63946;
+        font-weight: 700;
+        margin-bottom: 30px;
+    }
+    
+    div[data-testid="stExpander"] {
+        direction: rtl !important;
+        text-align: right !important;
+        border-radius: 10px;
     }
     
     .stTextArea textarea {
@@ -84,93 +72,102 @@ st.markdown("""
     .stButton button {
         width: 100%;
         border-radius: 25px;
-        height: 3.5em;
         background-color: #e63946 !important;
         color: white !important;
         font-weight: bold;
+        height: 3.5em;
         border: none;
     }
     
     .score-box {
-        background: #f8f9fa;
+        background: #ffffff;
         padding: 25px;
         border-radius: 15px;
         text-align: center;
         border: 2px solid #e63946;
         margin: 20px 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
 
-    
-    .custom-footer {
-        position: fixed; bottom: 0; right: 0; left: 0;
-        text-align: center; padding: 10px;
-        background-color: #f8fafc; color: #64748b;
-        font-size: 0.85em; border-top: 1px solid #e2e8f0; z-index: 100;
+    .footer {
+        direction: rtl !important;
+        text-align: center !important;
+        color: #888;
+        margin-top: 60px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+        font-size: 0.9em;
     }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🎯 مُحلّل احتمالية الانتشار")
+# العنوان في منتصف الصفحة
+st.markdown('<h1 class="main-title">🎯 مُحلّل احتمالية الانتشار</h1>', unsafe_allow_html=True)
 
-# Expander الشرح تحت العنوان
-with st.expander("💡 عن التطبيق وكيفية التحليل"):
+# الشرح المفصل داخل Expander
+with st.expander("💡 عن التطبيق وكيف يتم التقييم؟"):
     st.markdown("""
-    يعتمد هذا المحلل على معايير **STEPPS** العلمية (العملة الاجتماعية، المحفزات، المشاعر، الظهور العام، القيمة العملية، والقصص).
-    أدخل نصك وسيقوم الذكاء الاصطناعي بقياس مدى قابليته للانتشار بناءً على هذه العوامل السيكولوجية.
+    يتم تقييم المحتوى بناءً على إطار **STEPPS** العلمي، وإليك شرح العوامل الستة:
+    - **العملة الاجتماعية:** قدرة المحتوى على تحسين صورة الشخص الذي يشاركه وجعله يبدو ذكياً أو مطلعاً أمام محيطه.
+    - **المحفزات:** ربط الفكرة بعناصر من البيئة المحيطة أو أحداث يومية متكررة تضمن بقاء الفكرة حاضرة في الأذهان.
+    - **الممشاعر:** استثارة عواطف قوية مثل الدهشة، الإثارة، أو الفخر، لأن المشاعر ذات الطاقة العالية تزيد من نسب المشاركة.
+    - **الظهور العام:** تصميم المحتوى بحيث يسهل على الآخرين رؤية وتقليد السلوك المرتبط به، مما يخلق تأثيراً اجتماعياً فورياً.
+    - **القيمة العملية:** تقديم معلومات مفيدة، نصائح حقيقية، أو حلول لمشاكل تساعد الناس في حياتهم وتوفر وقتهم.
+    - **القصص:** صياغة الفكرة داخل رواية أو قصة مشوقة تجذب الانتباه وتجعل الرسالة الأساسية سهلة الحفظ والنقل للآخرين.
     """)
 
-post_text = st.text_area("ألصق نص المنشور أو سكريبت الفيديو هنا:", height=150)
+st.markdown("### أدخل نص المنشور أو سكريبت الفيديو:")
+post_input = st.text_area("", height=150, placeholder="ابدأ الكتابة هنا...")
 
 # ==========================================
-# 4. معالجة التحليل بالذكاء الاصطناعي الثابت
+# 4. محرك التحليل الثابت (Strict AI)
 # ==========================================
-if st.button("تحليل الآن 🚀"):
-    if not post_text.strip():
+if st.button("حلل المحتوى الآن 🚀"):
+    if not post_input.strip():
         st.warning("يرجى إدخال نص للتحليل.")
     else:
-        # تسجيل ضغطة الزر في قاعدة البيانات
-        track_cta_event()
-        
-        with st.spinner("جاري التحليل العلمي..."):
+        try:
+            supabase.rpc('increment_cta', {'row_id': APP_ID}).execute()
+        except:
+            pass
+            
+        with st.spinner("جاري التحليل العلمي الثابت..."):
             try:
-                # إعدادات صارمة جداً لمنع التشتت (Deterministic)
-                gen_config = types.GenerateContentConfig(
-                    temperature=0.0,
-                    top_p=0.1,
+                # إعدادات صارمة للثبات (Deterministic Configuration)
+                strict_config = types.GenerateContentConfig(
+                    temperature=0.0, 
+                    top_p=0.1, 
                     top_k=1,
-                    max_output_tokens=800
+                    candidate_count=1
                 )
                 
-                # صياغة البرومبت لضمان ثبات النتائج لكل عامل
+                # توجيه الموديل للالتزام بالثبات المطلق
                 prompt = f"""
-                أنت خبير محتوى فيروسي. حلل النص التالي بناءً على معايير STEPPS لـ Jonah Berger.
-                يجب أن تكون الدرجة والنتائج ثابتة تماماً لنفس النص عند تكرار التحليل.
+                أنت خبير سيكولوجي متخصص في تحليل المحتوى. حلل النص المرفق بناءً على معايير STEPPS الستة.
+                قاعدة حتمية: يجب أن تكون الدرجة النهائية والتحليلات الرقمية ثابتة تماماً لنفس النص في كل مرة يتم فيها التحليل.
                 
-                التنسيق المطلوب باللغة العربية:
-                1. في السطر الأول فقط: (النتيجة المتوقعة: X/100)
-                2. ثم تقييم العوامل الستة من 10 مع شرح موجز لكل منها.
+                المطلوب:
+                1. السطر الأول: (النتيجة المتوقعة: X/100).
+                2. تفصيل تقييم كل عامل من العوامل الستة من 10 مع ذكر السبب باختصار شديد.
                 
-                النص: {post_text}
+                النص المراد تحليله:
+                {post_input}
                 """
                 
                 response = genai_client.models.generate_content(
                     model="gemini-2.0-flash-exp",
                     contents=prompt,
-                    config=gen_config
+                    config=strict_config
                 )
                 
-                full_response = response.text
-                # استخراج السطر الأول (الدرجة) لعرضه بشكل مميز
-                score_header = full_response.split('\n')[0]
+                res_text = response.text
+                first_line = res_text.split('\n')[0]
                 
-                st.markdown(f'<div class="score-box"><h2 style="color:#e63946; margin:0;">{score_header}</h2></div>', unsafe_allow_html=True)
-                st.info(full_response)
+                st.markdown(f'<div class="score-box"><h1 style="color:#e63946; margin:0;">{first_line}</h1></div>', unsafe_allow_html=True)
+                st.info(res_text)
                 
             except Exception:
-                st.error("عذراً، حدث خطأ في محرك التحليل. يرجى المحاولة لاحقاً.")
+                st.error("عذراً، حدث خطأ تقني في محرك التحليل.")
 
-# الفوتر بتنسيق LTR
-st.markdown(
-    '<div class="custom-footer">جميع الحقوق محفوظة © 2026 | AI Product Builder - Layan Khalil</div>', 
-    unsafe_allow_html=True
-)
+# الفوتر المحدث
+st.markdown('<div class="footer">جميع الحقوق محفوظة © 2026 | AI Product Builder - Layan Khalil</div>', unsafe_allow_html=True)
