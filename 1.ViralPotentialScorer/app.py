@@ -1,173 +1,229 @@
 import streamlit as st
 import uuid
+import hashlib
 from supabase import create_client, Client
 from google import genai
 from google.genai import types
 
-# ==========================================
-# 1. إعدادات الاتصال (Secrets)
-# ==========================================
+# =========================================================
+# 1) تحميل Secrets
+# =========================================================
 try:
     SUPABASE_URL = st.secrets["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 except Exception:
-    st.error("⚠️ خطأ في المفاتيح السرية.")
+    st.error("⚠️ فشل في تحميل مفاتيح الاتصال. تأكد من إضافة Secrets في Streamlit Cloud.")
     st.stop()
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai_client = genai.Client(api_key=GOOGLE_API_KEY)
+
 APP_ID = "viral-potential-scorer-v1"
 
-# ==========================================
-# 2. نظام التتبع (Analytics)
-# ==========================================
+# =========================================================
+# 2) وظائف التتبع (RLS عبر الدوال فقط)
+# =========================================================
 def track_visit():
-    if 'visit_logged' not in st.session_state:
-        st.session_state.visit_logged = True
-        try:
-            vid = str(uuid.uuid4())
-            supabase.table("visitor_logs").insert({"visitor_id": vid, "app_id": APP_ID}).execute()
-            supabase.rpc('increment_analytics', {'row_id': APP_ID, 'v_inc': 1, 'u_inc': 1, 'r_inc': 0}).execute()
-        except:
-            pass
+    """تسجيل زيارة عبر دالة track_visit"""
+    if "visitor_id" not in st.session_state:
+        st.session_state.visitor_id = uuid.uuid4()
+
+    try:
+        supabase.rpc(
+            "track_visit",
+            {
+                "p_app_id": APP_ID,
+                "p_visitor_id": str(st.session_state.visitor_id)
+            }
+        ).execute()
+    except Exception as e:
+        print(f"[TRACK VISIT ERROR] {e}")
+
+def track_cta():
+    """تسجيل ضغطة CTA"""
+    try:
+        supabase.rpc("increment_cta", {"p_app_id": APP_ID}).execute()
+    except Exception as e:
+        print(f"[CTA ERROR] {e}")
 
 track_visit()
 
-# ==========================================
-# 3. واجهة المستخدم (UI & CSS)
-# ==========================================
-st.set_page_config(page_title="Viral Scorer", layout="centered")
+# =========================================================
+# 3) كاش النتائج — ثابت لكل نص
+# =========================================================
+def hash_content(text: str):
+    return hashlib.sha256(text.strip().encode()).hexdigest()
+
+def get_cached_result(content_hash):
+    try:
+            res = (
+                supabase.table("viral_scores_cache")
+                .select("analysis_text")
+                .eq("app_id", APP_ID)
+                .eq("content_hash", content_hash)
+                .limit(1)
+                .execute()
+            )
+
+            if res.data:
+                return res.data[0]["analysis_text"]
+    except Exception as e:
+        print(f"[CACHE FETCH ERROR] {e}")
+
+    return None
+
+def save_result_to_cache(content_hash, analysis_text):
+    try:
+        supabase.table("viral_scores_cache").insert({
+            "app_id": APP_ID,
+            "content_hash": content_hash,
+            "analysis_text": analysis_text
+        }).execute()
+    except Exception as e:
+        print(f"[CACHE SAVE ERROR] {e}")
+
+# =========================================================
+# 4) إعدادات الصفحة + RTL + محاذاة كاملة يمين
+# =========================================================
+st.set_page_config(page_title="🎯 مُحلّل احتمالية الانتشار", layout="centered")
 
 st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
-    
-    html, body, [data-testid="stAppViewContainer"] {
-        direction: rtl !important;
-        text-align: right !important;
-        font-family: 'Cairo', sans-serif;
-    }
-    
-    /* توسيط العنوان */
-    .main-title {
-        text-align: center !important;
-        color: #e63946;
-        font-weight: 700;
-        margin-bottom: 30px;
-    }
-    
-    div[data-testid="stExpander"] {
-        direction: rtl !important;
-        text-align: right !important;
-        border-radius: 10px;
-    }
-    
-    .stTextArea textarea {
-        direction: rtl !important;
-        text-align: right !important;
-        border-radius: 12px;
-    }
-    
-    .stButton button {
-        width: 100%;
-        border-radius: 25px;
-        background-color: #e63946 !important;
-        color: white !important;
-        font-weight: bold;
-        height: 3.5em;
-        border: none;
-    }
-    
-    .score-box {
-        background: #ffffff;
-        padding: 25px;
-        border-radius: 15px;
-        text-align: center;
-        border: 2px solid #e63946;
-        margin: 20px 0;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    }
+<style>
 
-    .footer {
-        direction: rtl !important;
-        text-align: center !important;
-        color: #888;
-        margin-top: 60px;
-        padding-top: 20px;
-        border-top: 1px solid #eee;
-        font-size: 0.9em;
-    }
-    </style>
+html, body, [data-testid="stAppViewContainer"], .main {
+    direction: rtl !important;
+    text-align: right !important;
+    font-family: "Cairo", sans-serif;
+}
+
+/* كل النصوص والمخرجات بمحاذاة يمين */
+p, div, span, textarea, .stMarkdown, .stTextArea textarea {
+    direction: rtl !important;
+    text-align: right !important;
+}
+
+/* المخرجات داخل الصندوق — محاذاة يمين */
+.output-box {
+    background: #ffffff;
+    border: 2px solid #e63946;
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 15px;
+    line-height: 1.9;
+    direction: rtl !important;
+    text-align: right !important;
+}
+
+/* صندوق النتيجة */
+.score-box {
+    background: #f8f9fa;
+    border: 3px solid #e63946;
+    border-radius: 18px;
+    padding: 25px;
+    margin-top: 20px;
+    text-align: center;
+}
+
+/* زر CTA */
+.stButton button {
+    width: 100%;
+    height: 3.5em;
+    border-radius: 25px;
+    font-weight: bold;
+    background:#e63946;
+    color:white;
+    border:none;
+}
+
+/* الفوتر LTR */
+.footer-ltr {
+    direction:ltr !important;
+    text-align:center !important;
+    margin-top:45px;
+    color:#777;
+}
+            
+
+</style>
 """, unsafe_allow_html=True)
 
-# العنوان في منتصف الصفحة
-st.markdown('<h1 class="main-title">🎯 مُحلّل احتمالية الانتشار</h1>', unsafe_allow_html=True)
+# =========================================================
+# 5) واجهة التطبيق
+# =========================================================
+st.title("🎯 مُحلّل احتمالية الانتشار الفيروسي")
 
-# الشرح المفصل داخل Expander
-with st.expander("💡 عن التطبيق وكيف يتم التقييم؟"):
+with st.expander("💡 شرح العوامل النفسية (STEPPS)"):
     st.markdown("""
-    يتم تقييم المحتوى بناءً على إطار **STEPPS** العلمي، وإليك شرح العوامل الستة:
-    - **العملة الاجتماعية:** قدرة المحتوى على تحسين صورة الشخص الذي يشاركه وجعله يبدو ذكياً أو مطلعاً أمام محيطه.
-    - **المحفزات:** ربط الفكرة بعناصر من البيئة المحيطة أو أحداث يومية متكررة تضمن بقاء الفكرة حاضرة في الأذهان.
-    - **الممشاعر:** استثارة عواطف قوية مثل الدهشة، الإثارة، أو الفخر، لأن المشاعر ذات الطاقة العالية تزيد من نسب المشاركة.
-    - **الظهور العام:** تصميم المحتوى بحيث يسهل على الآخرين رؤية وتقليد السلوك المرتبط به، مما يخلق تأثيراً اجتماعياً فورياً.
-    - **القيمة العملية:** تقديم معلومات مفيدة، نصائح حقيقية، أو حلول لمشاكل تساعد الناس في حياتهم وتوفر وقتهم.
-    - **القصص:** صياغة الفكرة داخل رواية أو قصة مشوقة تجذب الانتباه وتجعل الرسالة الأساسية سهلة الحفظ والنقل للآخرين.
-    """)
+**✔️ العملة الاجتماعية** — هل يجعل الشخص يبدو أذكى / أقوى عند مشاركته؟  
+**✔️ المحفزات** — هل يتكرر ارتباطه بأحداث يومية أو كلمات شائعة؟  
+**✔️ المشاعر** — هل يثير دهشة / حماس / فضول قوي؟  
+**✔️ الظهور العام** — هل من السهل تقليده أو رؤية تأثيره اجتماعياً؟  
+**✔️ القيمة العملية** — هل يقدم فائدة حقيقية قابلة للتطبيق؟  
+**✔️ القصة** — هل الفكرة مغلفة بسرد قصصي يسهل تذكره؟  
+""")
 
-st.markdown("### أدخل نص المنشور أو سكريبت الفيديو:")
-post_input = st.text_area("", height=150, placeholder="ابدأ الكتابة هنا...")
+post_text = st.text_area("ألصق النص هنا:", height=170)
 
-# ==========================================
-# 4. محرك التحليل الثابت (Strict AI)
-# ==========================================
-if st.button("حلل المحتوى الآن 🚀"):
-    if not post_input.strip():
+# =========================================================
+# 6) زر التحليل
+# =========================================================
+if st.button("تحليل الآن 🚀"):
+
+    if not post_text.strip():
         st.warning("يرجى إدخال نص للتحليل.")
-    else:
-        try:
-            supabase.rpc('increment_cta', {'row_id': APP_ID}).execute()
-        except:
-            pass
-            
-        with st.spinner("جاري التحليل العلمي الثابت..."):
-            try:
-                # إعدادات صارمة للثبات (Deterministic Configuration)
-                strict_config = types.GenerateContentConfig(
-                    temperature=0.0, 
-                    top_p=0.1, 
-                    top_k=1,
-                    candidate_count=1
-                )
-                
-                # توجيه الموديل للالتزام بالثبات المطلق
-                prompt = f"""
-                أنت خبير سيكولوجي متخصص في تحليل المحتوى. حلل النص المرفق بناءً على معايير STEPPS الستة.
-                قاعدة حتمية: يجب أن تكون الدرجة النهائية والتحليلات الرقمية ثابتة تماماً لنفس النص في كل مرة يتم فيها التحليل.
-                
-                المطلوب:
-                1. السطر الأول: (النتيجة المتوقعة: X/100).
-                2. تفصيل تقييم كل عامل من العوامل الستة من 10 مع ذكر السبب باختصار شديد.
-                
-                النص المراد تحليله:
-                {post_input}
-                """
-                
-                response = genai_client.models.generate_content(
-                    model="gemini-2.0-flash-exp",
-                    contents=prompt,
-                    config=strict_config
-                )
-                
-                res_text = response.text
-                first_line = res_text.split('\n')[0]
-                
-                st.markdown(f'<div class="score-box"><h1 style="color:#e63946; margin:0;">{first_line}</h1></div>', unsafe_allow_html=True)
-                st.info(res_text)
-                
-            except Exception:
-                st.error("عذراً، حدث خطأ تقني في محرك التحليل.")
+        st.stop()
 
-# الفوتر المحدث
-st.markdown('<div class="footer">جميع الحقوق محفوظة © 2026 | AI Product Builder - Layan Khalil</div>', unsafe_allow_html=True)
+    track_cta()
+
+    content_hash = hash_content(post_text)
+
+    cached = get_cached_result(content_hash)
+
+    # ========= استخدام النتيجة من الكاش =========
+    if cached:
+        st.success("✔ تم استخدام نتيجة محفوظة سابقاً (ثبات كامل)")
+        st.markdown(f'<div class="output-box">{cached}</div>', unsafe_allow_html=True)
+        st.stop()
+
+    # ========= توليد تحليل جديد =========
+    with st.spinner("جاري إجراء التحليل العلمي..."):
+        try:
+            config = types.GenerateContentConfig(
+                temperature=0.0,
+                top_p=0.1,
+                top_k=1,
+                max_output_tokens=900
+            )
+
+            prompt = f"""
+أنت خبير علم نفس المحتوى الفيروسي.
+حلّل النص التالي وفق عوامل STEPPS الستة.
+
+❗ هام:
+لا تحسب نتيجة إجمالية نهائية.
+اكتب تقييم كل عامل فقط، مع شرح قصير ثابت.
+
+النص:
+{post_text}
+"""
+
+            response = genai_client.models.generate_content(
+                model="gemini-2.0-flash-exp",
+                contents=prompt,
+                config=config
+            )
+
+            analysis_text = response.text.strip()
+
+            save_result_to_cache(content_hash, analysis_text)
+
+            st.markdown(f'<div class="output-box">{analysis_text}</div>', unsafe_allow_html=True)
+
+        except Exception:
+            st.error("حدث خطأ أثناء التحليل. يرجى المحاولة لاحقاً.")
+
+# =========================================================
+# 7) فوتر
+# =========================================================
+st.markdown('<div class=".footer-ltr">جميع الحقوق محفوظة © 2026 | AI Product Builder - Layan Khalil</div>', unsafe_allow_html=True)
