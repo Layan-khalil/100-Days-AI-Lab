@@ -47,6 +47,24 @@ html, body, [data-testid="stAppViewContainer"], .main {
     margin: 0 auto;
     padding: 0 14px;
 }
+.stButton > button {
+    background-color: #e63946 !important;
+    color: #ffffff !important;
+    font-weight: 800;
+    border-radius: 28px;
+    border: none;
+    padding: 12px 18px;
+    height: 3.2em;
+    width: 100%;
+    font-size: 17px;
+    transition: 0.2s ease-in-out;
+}
+
+.stButton > button:hover {
+    background-color: #c82333 !important;
+    transform: scale(1.01);
+}
+
 
 /************  العناوين  ************/
 
@@ -98,19 +116,27 @@ ol li, ul li {
 }
 
 /************  الفوتر  ************/
-
 .footer-container {
-    direction: ltr !important;
-    text-align: center !important;
-    margin-top: 28px;
-    padding-top: 12px;
-    border-top: 1px solid #ddd;
+    width: 100%;
+    text-align: center;
+    margin-top: 45px;
+    padding-top: 20px;
+    border-top: 1px solid #666;
     font-size: 13px;
-    color: #888;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
 }
 
-.footer-container .rtl {
-    direction: rtl !important;
+.footer-container .rtl-text {
+    direction: rtl;
+    unicode-bidi: plaintext;
+    font-weight: 600;
+}
+
+.footer-container .ltr-text {
+    direction: ltr;
     unicode-bidi: plaintext;
 }
 
@@ -309,7 +335,7 @@ if st.button("تحليل الآن 🚀"):
 # ==============================
 st.markdown("""
 <div class="footer-container">
-  <span class="rtl">جميع الحقوق محفوظة © 2026 |</span>
-  <span class="ltr">AI Product Builder - Layan Khalil</span>
-</div>""", unsafe_allow_html=True)
-
+  <span class="rtl-text">جميع الحقوق محفوظة © 2026 |</span>
+  <span class="ltr-text">AI Product Builder - Layan Khalil</span>
+</div>
+""", unsafe_allow_html=True)
