@@ -28,81 +28,98 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai_client = genai.Client(api_key=GOOGLE_API_KEY)
 
 APP_ID = "viral-potential-scorer-v1"
-
-# ==============================
-# 2) CSS – RTL + تنسيق النتيجة
-# ==============================
+# =========================
+#  CSS & Responsive Styling
+# =========================
 st.markdown(
     """
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+<style>
+/* خط عام */
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
 
-    html, body, [data-testid="stAppViewContainer"], .main {
-        direction: rtl !important;
-        text-align: right !important;
-        font-family: "Cairo", sans-serif;
-        background-color: #0b0c10;
-    }
+html, body, [data-testid="stAppViewContainer"], .main {
+    direction: rtl !important;
+    text-align: right !important;
+    font-family: "Cairo", sans-serif;
+    background-color: #050810;
+}
 
-    .stTextArea textarea {
-        direction: rtl !important;
-        text-align: right !important;
-        border-radius: 12px !important;
-        font-size: 16px !important;
-        line-height: 1.6 !important;
-    }
+/* الحاوية الرئيسية */
+.block-container {
+    max-width: 900px !important;
+    padding-top: 2rem !important;
+    padding-bottom: 4rem !important;
+}
 
-    .stButton button {
-        width: 100%;
-        border-radius: 25px;
-        height: 3.4em;
-        background-color: #e63946 !important;
-        color: white !important;
-        font-weight: bold;
-        font-size: 17px;
-        border: none;
-    }
+/* عنوان التطبيق في المنتصف */
+h1 {
+    text-align: center !important;
+    margin-bottom: 1rem !important;
+}
 
-    .result-box {
-        background: #ffffff;
-        padding: 24px 22px;
-        border-radius: 18px;
-        border: 2px solid #e63946;
-        margin-top: 22px;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.25);
-    }
+/* صندوق النتيجة */
+.score-box {
+    background: #0b1624;
+    border-radius: 18px;
+    border: 2px solid #e63946;
+    padding: 24px;
+    margin: 24px 0;
+    color: #f9fafb;
+}
 
-    .result-title {
-        font-weight: 700;
-        font-size: 20px;
-        margin-bottom: 10px;
-        color: #e63946;
-        text-align: right;
-    }
+/* نص داخل expander ونتائج التحليل */
+.stMarkdown, .stMarkdown p, .stMarkdown li {
+    direction: rtl !important;
+    text-align: right !important;
+}
 
-    .result-text {
-        color: #111111;
-        font-size: 15px;
-        line-height: 1.9;
-        text-align: right;
-        direction: rtl;
-        white-space: pre-line;  /* يحافظ على الـ line breaks */
-    }
+/* حقل النص */
+.stTextArea textarea {
+    direction: rtl !important;
+    text-align: right !important;
+    border-radius: 14px;
+}
 
-    .footer-container {
-        direction: ltr !important;
-        text-align: center !important;
-        color: #888;
-        margin-top: 50px;
-        padding-top: 16px;
-        border-top: 1px solid #333;
-        font-size: 0.8em;
+/* زر التحليل */
+.stButton > button {
+    width: 100%;
+    border-radius: 999px;
+    height: 3.5em;
+    background-color: #e63946 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    border: none;
+}
+
+/* الفوتر – RTL + في المنتصف */
+.footer-container {
+    direction: rtl !important;
+    text-align: center !important;
+    color: #888;
+    margin-top: 40px;
+    padding-top: 12px;
+    border-top: 1px solid #222;
+    font-size: 0.85rem;
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+    .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
-    </style>
-    """,
+    .score-box {
+        padding: 18px;
+        margin: 18px 0;
+    }
+    h1 {
+        font-size: 1.6rem !important;
+    }
+}
+</style>
+""",
     unsafe_allow_html=True,
 )
-
 # ==============================
 # 3) دوال التتبع مع Supabase
 # ==============================
@@ -294,5 +311,8 @@ if st.button("تحليل الآن 🚀"):
 # ==============================
 # 6) الفوتر
 # ==============================
-st.markdown('<div class="footer-container">جميع الحقوق محفوظة © 2026 | AI Product Builder - Layan Khalil</div>', unsafe_allow_html=True)
-
+st.markdown("""
+<div class="footer-container">
+  <span class="rtl">جميع الحقوق محفوظة © 2026 |</span>
+  <span class="ltr">AI Product Builder - Layan Khalil</span>
+</div>""", unsafe_allow_html=True)
