@@ -1,11 +1,11 @@
 import streamlit as st
+from google import genai
+from google.genai import types
+from supabase import create_client, Client
 import uuid
 import hashlib
 import json
 import pandas as pd
-from supabase import create_client, Client
-from google import genai
-from google.genai import types
 
 # =================================================================
 # 1. إعدادات الصفحة + CSS (RTL / Responsive)
@@ -13,93 +13,104 @@ from google.genai import types
 
 st.set_page_config(
     page_title="🔍 مُنشئ المحتوى المفقود",
-    layout="wide",
+    layout="centered",
     initial_sidebar_state="collapsed",
 )
 
+# CSS مدمج
 st.markdown(
     """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
 
     html, body, [data-testid="stAppViewContainer"], .main {
-        direction: rtl;
-        text-align: right;
+        direction: rtl !important;
+        text-align: right !important;
         font-family: 'Cairo', sans-serif;
-        background-color: #020617;
-        color: #e5e7eb;
+        background-color: #0f172a;
     }
 
-    .app-container {
+    [data-testid="stAppViewContainer"] > .main {
+        display: flex;
+        justify-content: center;
+    }
+
+    .block-container {
         max-width: 900px;
-        margin: 0 auto;
-        padding: 1.5rem 1rem 4rem 1rem;
+        padding-top: 2rem;
+        padding-bottom: 3rem;
     }
 
     h1, h2, h3 {
         text-align: center;
+        font-weight: 700;
     }
 
     .stTextArea textarea {
         direction: rtl !important;
         text-align: right !important;
-        border-radius: 12px !important;
-        font-size: 0.95rem;
+        border-radius: 12px;
+        font-size: 15px;
+        line-height: 1.6;
     }
 
-    .stButton>button {
+    .stButton button {
         width: 100%;
         border-radius: 999px;
-        padding: 0.9rem 1.5rem;
+        height: 3.3em;
+        font-weight: 700;
+        font-size: 16px;
+        border: none;
         background-color: #e63946 !important;
         color: #ffffff !important;
-        font-weight: 700;
-        border: none;
-        font-size: 1rem;
-        box-shadow: 0 4px 12px rgba(230, 57, 70, 0.35);
     }
 
-    .stButton>button:hover {
-        background-color: #c92c3a !important;
-        box-shadow: 0 6px 16px rgba(230, 57, 70, 0.45);
-        transform: translateY(-1px);
+    .stButton button:hover {
+        filter: brightness(1.05);
     }
 
-    .result-block {
+    .gap-card {
         background: #020617;
         border-radius: 16px;
-        padding: 1.2rem 1.4rem;
-        border: 1px solid #374151;
-        margin-top: 1.2rem;
+        padding: 22px 20px;
+        border: 1px solid #1e293b;
+        box-shadow: 0 10px 30px rgba(15,23,42,0.65);
     }
 
-    .result-block p,
-    .result-block li,
-    .result-block span,
-    .result-block div {
-        direction: rtl;
+    .gap-card h3 {
         text-align: right;
-    }
-
-    .result-block ul,
-    .result-block ol {
-        padding-inline-start: 1.4rem;
-        list-style-position: inside;
-    }
-
-    [data-testid="stDataFrame"] {
-        direction: rtl;
-        text-align: right;
+        margin-bottom: 1rem;
     }
 
     .footer-container {
+        margin-top: 40px;
+        padding-top: 16px;
+        border-top: 1px solid #1e293b;
+        text-align: center !important;
+        font-size: 13px;
+        color: #94a3b8;
+        direction: rtl;
+    }
+
+    .footer-container span.ltr {
         direction: ltr;
-        text-align: center;
-        color: #9ca3af;
-        margin-top: 3rem;
-        padding-top: 1rem;
-        border-top: 1px solid #374151;
-        font-size: 0.8rem;
+        unicode-bidi: bidi-override;
+        margin-right: 4px;
+    }
+
+    /* جدول النتائج */
+    .dataframe td, .dataframe th {
+        text-align: right !important;
+    }
+
+    @media (max-width: 768px) {
+        .block-container {
+            padding-left: 0.8rem;
+            padding-right: 0.8rem;
+        }
+        h1 {
+            font-size: 1.4rem;
+        }
     }
     </style>
     """,
@@ -107,49 +118,44 @@ st.markdown(
 )
 
 # =================================================================
-# 2. الاتصال بـ Supabase + Gemini
+# 2. إعداد الاتصال بـ Supabase + Gemini
 # =================================================================
 
-APP_ID = "missing-topic-generator"
+APP_ID = "missing-topic-generator-v1"
 
-# Supabase
 try:
     SUPABASE_URL = st.secrets["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 except KeyError:
-    st.error("⚠️ لم يتم العثور على SUPABASE_URL أو SUPABASE_KEY في secrets.")
+    st.error("⚠️ تأكد من وجود SUPABASE_URL و SUPABASE_KEY و GEMINI_API_KEY في ملف secrets.toml.")
     st.stop()
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Gemini API Key (يدعم اسمين: GEMINI_API_KEY أو GOOGLE_API_KEY)
 try:
-    try:
-        API_KEY = st.secrets["GEMINI_API_KEY"]
-    except KeyError:
-        API_KEY = st.secrets["GOOGLE_API_KEY"]
-except KeyError:
-    st.error("⚠️ لم يتم العثور على مفتاح Gemini (GEMINI_API_KEY أو GOOGLE_API_KEY) في secrets.")
+    genai_client = genai.Client(api_key=GEMINI_API_KEY)
+except Exception as e:
+    st.error(f"خطأ في تهيئة نموذج Gemini: {e}")
     st.stop()
 
-genai_client = genai.Client(api_key=API_KEY)
+# =================================================================
+# 3. دوال التتبع (visits + CTA) + الكاش المشترك
+# =================================================================
 
-# =================================================================
-# 3. دوال التتبع (Views / Unique / Returning / CTA)
-# =================================================================
+def make_content_hash(*parts: str) -> str:
+    """إنشاء بصمة موحّدة للمحتوى (لكل تطبيق)."""
+    normalized = "\n\n".join(p.strip() for p in parts if p and p.strip())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
 
 def track_visit():
-    """
-    يرسل visitor_id + app_id إلى دالة track_visit في Supabase
-    لحساب:
-    - views
-    - unique_visitors
-    - returning_visitors
-    """
-    if "visitor_id" not in st.session_state:
-        st.session_state["visitor_id"] = str(uuid.uuid4())
+    """تسجيل زيارة فريدة + تحديث analytics عبر دالة track_visit في Supabase."""
+    if "session_tracked" in st.session_state:
+        return
 
-    visitor_id = st.session_state["visitor_id"]
+    st.session_state.session_tracked = True
+    visitor_id = str(uuid.uuid4())
 
     try:
         supabase.rpc(
@@ -157,255 +163,228 @@ def track_visit():
             {"p_app_id": APP_ID, "p_visitor_id": visitor_id},
         ).execute()
     except Exception as e:
-        # نطبع الخطأ في اللوغ فقط كي لا نُفسد تجربة المستخدم
-        print("track_visit error:", e)
+        print("Track visit error:", e)
 
 
 def track_cta():
-    """زيادة عدّاد الضغطات على زر التحليل (cta_count)."""
+    """تسجيل ضغطة زر التحليل (CTA) في جدول analytics."""
     try:
         supabase.rpc("increment_cta", {"p_app_id": APP_ID}).execute()
     except Exception as e:
-        print("increment_cta error:", e)
+        print("CTA error:", e)
 
 
-# استدعاء التتبع عند تحميل الصفحة
-track_visit()
+def get_cached_result(app_id: str, content_hash: str):
+    """إرجاع نتيجة الكاش (إن وجدت) من جدول viral_scores_cache."""
+    try:
+        res = (
+            supabase.table("viral_scores_cache")
+            .select("analysis_text")
+            .eq("app_id", app_id)
+            .eq("content_hash", content_hash)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            return res.data[0]["analysis_text"]
+    except Exception as e:
+        print("Cache read error:", e)
+    return None
+
+
+def save_cached_result(app_id: str, content_hash: str, analysis_text: str):
+    """حفظ النتيجة في جدول الكاش (كـ نص)."""
+    try:
+        supabase.table("viral_scores_cache").upsert(
+            {
+                "app_id": app_id,
+                "content_hash": content_hash,
+                "analysis_text": analysis_text,
+            },
+            on_conflict="app_id,content_hash",
+        ).execute()
+    except Exception as e:
+        print("Cache write error:", e)
+
+
+track_visit()  # يُنفَّذ مرة واحدة لكل جلسة
 
 # =================================================================
-# 4. دالة استدعاء Gemini + الكاش في viral_scores_cache
+# 4. دالة استدعاء Gemini لتحليل الفجوات
 # =================================================================
 
-def call_gemini_gap_analysis(my_posts: str, competitor_posts: str) -> dict | None:
+def analyze_content_gaps(my_posts: str, competitor_posts: str):
     """
-    يستدعي نموذج Gemini لتحليل فجوات المحتوى ويعيد JSON منظم.
+    تحليل قائمة منشوراتك مقابل منشورات المنافسين
+    واستخراج مواضيع مفقودة محتملة (Gap Analysis).
     """
     system_prompt = (
         "أنت خبير استراتيجي في المحتوى التسويقي متخصص في تحليل الفجوات (Content Gap Analysis). "
-        "قارن بين قائمة منشورات العميل وقائمة منشورات المنافسين، واستخرج 5–7 مواضيع مفقودة "
-        "أو غير مغطّاة بالشكل الكافي، لكنّها مهمة وذات طلب محتمل من الجمهور. "
-        "التزم تمامًا بمخطّط JSON المطلوب دون أي نص خارج JSON."
+        "قارن بين منشورات العميل ومنشورات المنافسين، واستخرج 5–7 مواضيع استراتيجية مفقودة "
+        "من الممكن أن تجذب الجمهور بقوة. أعد الاستجابة بتنسيق JSON فقط."
     )
 
     user_prompt = (
-        "هذه هي بيانات التحليل:\n\n"
-        f"منشورات العميل (مختصرة أو عناوين فقط):\n{my_posts}\n\n"
-        f"منشورات المنافسين (مختصرة أو عناوين فقط):\n{competitor_posts}\n\n"
-        "أعد النتيجة في JSON مطابق للمخطط."
-    )
-
-    config = types.GenerateContentConfig(
-        system_instruction=system_prompt,
-        response_mime_type="application/json",
-        response_schema={
-            "type": "OBJECT",
-            "properties": {
-                "missing_topics": {
-                    "type": "ARRAY",
-                    "description": "قائمة بالمواضيع الاستراتيجية المفقودة أو غير المغطاة جيدًا.",
-                    "items": {
-                        "type": "OBJECT",
-                        "properties": {
-                            "topic_title": {
-                                "type": "STRING",
-                                "description": "عنوان واضح للموضوع المقترح."
-                            },
-                            "gap_reason": {
-                                "type": "STRING",
-                                "description": "لماذا يُعد هذا الموضوع فجوة؟ ما الذي يجعله فرصة قوية؟"
-                            },
-                            "format_suggestion": {
-                                "type": "STRING",
-                                "description": "اقتراح شكل المحتوى: فيديو قصير، سلسلة بوستات، بث مباشر، كتيّب، إلخ."
-                            },
-                        },
-                    },
-                },
-                "summary_analysis": {
-                    "type": "STRING",
-                    "description": "تلخيص لنمط محتوى العميل مقابل المنافسين وما يميّز الفرص المقترحة."
-                },
-            },
-        },
-        temperature=0.2,
-        top_p=0.8,
-        top_k=32,
-        max_output_tokens=1200,
+        "قارن بين قائمتين من المنشورات (للعميل والمنافسين)، "
+        "واستخرج مواضيع مفقودة، مع سبب يوضح الفجوة، واقتراح شكل المحتوى المناسب.\n\n"
+        f"🧑‍💻 منشورات العميل:\n{my_posts}\n\n"
+        f"🏁 منشورات المنافسين:\n{competitor_posts}\n"
     )
 
     response = genai_client.models.generate_content(
         model="gemini-2.5-flash",
         contents=user_prompt,
-        config=config,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            response_mime_type="application/json",
+            response_schema={
+                "type": "OBJECT",
+                "properties": {
+                    "missing_topics": {
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "topic_title": {"type": "STRING"},
+                                "gap_reason": {"type": "STRING"},
+                                "format_suggestion": {"type": "STRING"},
+                            },
+                        },
+                    },
+                    "summary_analysis": {"type": "STRING"},
+                },
+            },
+            temperature=0.2,
+            top_p=0.8,
+            top_k=32,
+            max_output_tokens=1200,
+        ),
     )
 
-    raw = response.text.strip()
-
-    # في حال رجّع ```json ... ``` نحاول تنظيفها
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        # أحياناً يكون أول سطر json أو JSON
-        lines = raw.splitlines()
-        if lines and lines[0].lower().startswith("json"):
-            raw = "\n".join(lines[1:]).strip()
-
     try:
-        return json.loads(raw)
+        return json.loads(response.text)
     except json.JSONDecodeError:
-        print("JSON decode error. Raw response:", raw[:300])
+        st.error("النموذج لم يرجع JSON صالح. الرد الخام مذكور في سجلات الـ console.")
+        print("Raw response:", response.text)
         return None
-
-
-def get_or_create_cached_analysis(my_posts: str, competitor_posts: str) -> dict | None:
-    """
-    1) يحسب hash للنصين معاً.
-    2) يحاول جلب النتيجة من جدول viral_scores_cache.
-    3) إذا لم يجدها، يستدعي Gemini ويحفظ النتيجة في الكاش.
-    """
-    combined = (my_posts or "").strip() + "\n---\n" + (competitor_posts or "").strip()
-    content_hash = hashlib.sha256(combined.encode("utf-8")).hexdigest()
-
-    # محاولة قراءة من الكاش
-    try:
-        res = (
-            supabase.table("viral_scores_cache")
-            .select("analysis_text")
-            .eq("app_id", APP_ID)
-            .eq("content_hash", content_hash)
-            .execute()
-        )
-        if res.data:
-            cached_text = res.data[0]["analysis_text"]
-            return json.loads(cached_text)
-    except Exception as e:
-        print("cache read error:", e)
-
-    # لا يوجد كاش → استدعاء Gemini
-    analysis = call_gemini_gap_analysis(my_posts, competitor_posts)
-    if analysis is None:
-        return None
-
-    # حفظ في الكاش
-    try:
-        supabase.table("viral_scores_cache").insert(
-            {
-                "app_id": APP_ID,
-                "content_hash": content_hash,
-                "analysis_text": json.dumps(analysis, ensure_ascii=False),
-            }
-        ).execute()
-    except Exception as e:
-        print("cache write error:", e)
-
-    return analysis
-
 
 # =================================================================
 # 5. واجهة المستخدم
 # =================================================================
 
-st.markdown('<div class="app-container">', unsafe_allow_html=True)
-
-st.title("🔍 مُنشئ المحتوى المفقود (Content Gap Finder)")
-st.caption(
-    "أداة تساعدك على اكتشاف المواضيع التي لا تغطيها أنت ولا منافسوك بالشكل الكافي، "
-    "لكن جمهورك ينتظرها."
-)
+st.title("🔍 مُنشئ المحتوى المفقود (Missing Topic Generator)")
+st.caption("حلّل منشوراتك ومنشورات منافسيك لاكتشاف المواضيع التي لا يغطيها أحد رغم أن جمهورك يحتاجها.")
 
 with st.expander("💡 كيف يعمل هذا المحلل؟", expanded=False):
     st.markdown(
         """
-        يقوم هذا المحلل بمقارنة آخر ما تنشره أنت مع ما ينشره منافسوك، ثم يبحث عن:
-
-        - مواضيع مهمّة لا تظهر في محتواك إطلاقًا.  
-        - مواضيع يكررها المنافسون بينما تذكرها أنت بشكل ضعيف أو سطحي.  
-        - أسئلة أو زوايا ناقصة يمكن أن تتحوّل إلى **سلاسل محتوى قوية** (بوستات، فيديوهات، نشرات بريدية…).  
-
-        المخرجات النهائية تعطيك:
-
-        1. عنوان واضح لكل فكرة قابلة للتنفيذ.  
-        2. سبب اعتبارها «فجوة» وفرصة للمنافسة.  
-        3. اقتراح لشكل المحتوى الأنسب (Reel، Thread، بث مباشر، سلسلة مقالات…).  
+        هذه الأداة تساعدك على اكتشاف **فرص محتوى جديدة** من خلال مقارنة:
+        
+        - منشوراتك الحالية (عناوين، أفكار، أو وصف مختصر)
+        - منشورات منافسيك المباشرين في نفس المجال
+        
+        ثم يقوم النموذج بتحليل الفجوات ليقترح عليك:
+        
+        - عناوين مواضيع لم يتم التركيز عليها بما يكفي  
+        - سبب كون هذا الموضوع فرصة قوية (فجوة في السوق/طلب ضمني من الجمهور)  
+        - الشكل الأنسب لتقديمه: فيديو قصير، كاروسيل، لايف، سلسلة بوستات…  
         """
     )
 
-st.markdown("### ✍️ أدخل البيانات")
+st.markdown("---")
 
 col1, col2 = st.columns(2)
 
 with col1:
     my_posts_input = st.text_area(
-        "منشوراتك العشرة الأخيرة (عناوين أو ملخصات مختصرة):",
+        "✍️ ألصق هنا عناوين أو ملخصات **آخر 10 منشورات لك**:",
         height=260,
-        placeholder=(
-            "مثال:\n"
-            "1. 5 أخطاء شائعة في التسويق بالمحتوى\n"
-            "2. كيف تنمو على TikTok في 30 يوماً\n"
-            "3. تجربتي مع أول حملة إعلانات مدفوعة\n"
-            "4. مراجعة أدوات الذكاء الاصطناعي لصناع المحتوى..."
-        ),
+        placeholder="مثال:\n1. 5 أخطاء شائعة في التسويق على إنستغرام\n"
+                    "2. كيف تنمو على TikTok في 30 يوماً\n"
+                    "3. تجربتي مع أول إطلاق رقمي لمنتج تعليمي...",
     )
 
 with col2:
     competitor_posts_input = st.text_area(
-        "منشورات المنافسين (من 5 إلى 15 منشوراً / عنواناً):",
+        "📌 ألصق هنا عناوين أو ملخصات **آخر 10 منشورات لمنافسيك**:",
         height=260,
-        placeholder=(
-            "مثال:\n"
-            "1. خطة محتوى جاهزة لـ Reels في 2025\n"
-            "2. كيف تختار نيتش مربح في إنستغرام\n"
-            "3. دورة مجانية في تحرير الفيديو\n"
-            "4. نتائج حملة إعلانية لمتجر إلكتروني..."
-        ),
+        placeholder="مثال:\n1. كيف تختار فكرة كورس أونلاين مربحة\n"
+                    "2. خطة محتوى شهرية جاهزة للحسابات التعليمية\n"
+                    "3. أخطاء شائعة في تصميم الصفحات البيعية...",
     )
 
 analyze_button = st.button("🚀 تحليل الفجوات واقتراح المواضيع")
 
 # =================================================================
-# 6. تنفيذ التحليل وعرض النتائج
+# 6. منطق الزر + الكاش
 # =================================================================
 
 if analyze_button:
-    if not my_posts_input or not competitor_posts_input:
-        st.warning("يرجى إدخال بيانات منشوراتك ومنشورات المنافسين أولاً.")
+    if not my_posts_input.strip() or not competitor_posts_input.strip():
+        st.warning("الرجاء إدخال منشوراتك ومنشورات المنافسين حتى يتمكن النظام من المقارنة.")
     elif len(my_posts_input.strip()) < 50 or len(competitor_posts_input.strip()) < 50:
-        st.warning("للحصول على تحليل مفيد، يُفضَّل أن تحتوي كل قائمة على ما لا يقل عن 50 حرفاً.")
+        st.warning("يفضّل إدخال وصف أكثر لكل قائمة (على الأقل 50 حرفاً) للحصول على تحليل أدق.")
     else:
-        # تسجيل ضغطة الزر في التحليلات
+        # تسجيل CTA
         track_cta()
 
-        with st.spinner("جاري تحليل المحتوى المُقارَن واكتشاف الفجوات الاستراتيجية..."):
-            analysis_result = get_or_create_cached_analysis(
-                my_posts_input, competitor_posts_input
+        # بصمة المحتوى لهذا التطبيق
+        content_hash = make_content_hash(my_posts_input, competitor_posts_input)
+
+        # 1) محاولة قراءة من الكاش
+        cached = get_cached_result(APP_ID, content_hash)
+        if cached:
+            try:
+                analysis_result = json.loads(cached)
+                from_cache = True
+            except json.JSONDecodeError:
+                analysis_result = None
+                from_cache = False
+        else:
+            from_cache = False
+            with st.spinner("جاري تحليل المحتوى المُقارَن واكتشاف الفجوات الاستراتيجية..."):
+                analysis_result = analyze_content_gaps(my_posts_input, competitor_posts_input)
+                if analysis_result:
+                    # تخزين في الكاش (كـ نص JSON)
+                    save_cached_result(APP_ID, content_hash, json.dumps(analysis_result, ensure_ascii=False))
+
+        if analysis_result:
+            st.markdown(
+                f"""<div class="gap-card">
+                <h3>🎯 الفرص المفقودة: مواضيع يجب التركيز عليها قريباً</h3>
+                <p style="margin-bottom:0.5rem;">
+                {analysis_result.get("summary_analysis", "تحليل عام لنمط منشوراتك ومنشورات منافسيك.")}
+                </p>
+                </div>""",
+                unsafe_allow_html=True,
             )
 
-        if analysis_result is None:
-            st.error("لم يتمكّن النموذج من إنتاج استجابة صالحة هذه المرة. حاول تعديل القوائم أو إعادة المحاولة.")
-        else:
-            st.markdown("## 🎯 الفرص المفقودة في محتواك")
+            st.markdown("### 📚 قائمة المواضيع المقترحة:")
 
-            summary = analysis_result.get("summary_analysis", "")
             missing_topics = analysis_result.get("missing_topics", [])
-
-            if summary:
-                st.markdown("### ملخص عام")
-                st.markdown(
-                    f'<div class="result-block"><p>{summary}</p></div>',
-                    unsafe_allow_html=True,
-                )
-
-            st.markdown("### المواضيع المقترحة للتنفيذ:")
-
             if missing_topics:
                 df = pd.DataFrame(missing_topics)
-                df.columns = ["الموضوع المقترح", "سبب اعتباره فجوة", "اقتراح شكل المحتوى"]
+                # إعادة تسمية الأعمدة بالعربية
+                df.columns = ["الموضوع المقترح", "سبب كونها فجوة / فرصة", "اقتراح شكل المحتوى"]
                 st.dataframe(df, use_container_width=True)
             else:
-                st.info("لم يحدّد النموذج فجوات واضحة. ربما القوائم متشابهة جداً أو قصيرة.")
+                st.info("النموذج لم يجد فجوات واضحة بين القائمتين. ربما المحتوى متشابه جداً.")
+
+            if from_cache:
+                st.caption("✅ تم جلب هذه النتيجة من الكاش لتسريع التحليل وتقليل استهلاك الـ API.")
+        else:
+            st.error("تعذر الحصول على تحليل صالح من النموذج. يرجى المحاولة لاحقاً.")
+
+# =================================================================
+# 7. الفوتر
+# =================================================================
 
 st.markdown(
-    '<div class="footer-container">جميع الحقوق محفوظة © 2026 | AI Product Builder - Layan Khalil</div>',
+    """
+    <div class="footer-container">
+        <span>جميع الحقوق محفوظة © 2026 |</span>
+        <span class="ltr">AI Product Builder - Layan Khalil</span>
+    </div>
+    """,
     unsafe_allow_html=True,
-)
-
-st.markdown('</div>', unsafe_allow_html=True)
+)s
